@@ -1,0 +1,39 @@
+import React from "react";
+import { DocsThemeConfig } from "nextra-theme-docs";
+
+const config: DocsThemeConfig = {
+  logo: <span>OAS TS Generator</span>,
+  project: {
+    link: "https://github.com/3794/oas-ts-generator/",
+  },
+  // chat: {
+  //   link: "https://discord.com",
+  // },
+  // docsRepositoryBase: "https://github.com/shuding/nextra-docs-template",
+  footer: {
+    text: "by H",
+  },
+  head: (
+    <>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <meta property="og:title" content="OAS TS Generator" />
+      <meta
+        property="og:description"
+        content="Compare Various Typescript Interface Code Generation Tools from OpenAPI specification"
+      />
+      <meta
+        name="google-site-verification"
+        content="wsChCCMARGUqJ-zlWWmlQQd4ypS9aEafMEtIUaVakQ4"
+      />
+    </>
+  ),
+  feedback: { content: null },
+  editLink: { text: null },
+  useNextSeoProps() {
+    return {
+      title: "OAS TS Generator",
+    };
+  },
+};
+
+export default config;

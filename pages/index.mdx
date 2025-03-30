@@ -1,0 +1,40 @@
+# Introduction
+Compare Various Typescript Interface Code Generation Tools from OpenAPI specification
+
+|  | Stars | Maintenance | License |
+| --- | --- | --- | --- |
+| openapi-generator          | 20k  | ✔️ | Apache-2.0 |
+| openapi-typescript         | 4.7k | ✔️ | MIT |
+| swagger-typescript-api     | 3k   | ✔️ | MIT |
+| orval                      | 2.4k | ✔️ | MIT |
+| hey-api                    | 361  | ✔️ | MIT |
+| openapi-stack/openapicmd   | 43   | ✔️ | MIT |
+| openapi-typescript-codegen | 2.7k | ✖️ | MIT |
+
+## Example API
+```java
+// java
+
+public class User {
+    @NotBlank
+    private String username;
+
+    @Schema(nullable = true)
+    private String email;
+}
+
+
+public class Post {
+    @NotNull
+    private Long id;
+
+    @NotNull
+    private User user;
+
+    @NotBlank
+    private String content;
+}
+
+@GetMapping("/posts")
+	List<Post> allPost();
+```
