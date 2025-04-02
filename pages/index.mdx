@@ -1,40 +1,7 @@
 # Introduction
-Compare Various Typescript Interface Code Generation Tools from OpenAPI specification
 
-|  | Stars | Maintenance | License |
-| --- | --- | --- | --- |
-| openapi-generator          | 20k  | ✔️ | Apache-2.0 |
-| openapi-typescript         | 4.7k | ✔️ | MIT |
-| swagger-typescript-api     | 3k   | ✔️ | MIT |
-| orval                      | 2.4k | ✔️ | MIT |
-| hey-api                    | 361  | ✔️ | MIT |
-| openapi-stack/openapicmd   | 43   | ✔️ | MIT |
-| openapi-typescript-codegen | 2.7k | ✖️ | MIT |
+프로그래밍 원칙들로 알려진 것들이 정답이라고 할 순 없지만 프로그래머에게 도움이 될 수 있다. 간단한 예제와 함께 이해하기 쉽도록 정리 하였다.
 
-## Example API
-```java
-// java
+Resources
 
-public class User {
-    @NotBlank
-    private String username;
-
-    @Schema(nullable = true)
-    private String email;
-}
-
-
-public class Post {
-    @NotNull
-    private Long id;
-
-    @NotNull
-    private User user;
-
-    @NotBlank
-    private String content;
-}
-
-@GetMapping("/posts")
-	List<Post> allPost();
-```
+- [webpro/programming-principles (github.com)](https://github.com/webpro/programming-principles)

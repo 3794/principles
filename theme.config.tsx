@@ -2,7 +2,7 @@ import React from "react";
 import { DocsThemeConfig } from "nextra-theme-docs";
 
 const config: DocsThemeConfig = {
-  logo: <span>OAS TS Generator</span>,
+  logo: <span>Programming Principles</span>,
   project: {
     link: "https://github.com/3794/oas-ts-generator/",
   },
@@ -31,7 +31,7 @@ const config: DocsThemeConfig = {
   editLink: { text: null },
   useNextSeoProps() {
     return {
-      title: "OAS TS Generator",
+      title: "Programming Principles",
     };
   },
 };

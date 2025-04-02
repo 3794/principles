@@ -1,11 +1,5 @@
 {
   "index": "Introduction",
-  "openapi-generator": "openapi-generator",
-  "openapi-typescript": "openapi-typescript",
-  "swagger-typescript-api": "swagger-typescript-api",
-  "orval": "orval",
-  "hey-api": "hey-api",
-
-  "openapi-stack": "openapi-stack",
-  "openapi-typescript-codegen": "openapi-typescript-codegen"
+  "generic": "Generic",
+  "modules": "Modules"
 }
