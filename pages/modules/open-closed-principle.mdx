@@ -1,0 +1,65 @@
+# Open/Closed Principle (개방-폐쇄 원칙)
+
+소프트웨어 요소는 확장에는 열려있으나 변경에는 닫혀있어야 합니다.
+
+### Why
+
+1. **유지보수성 향상**: 기존 코드를 수정하지 않고도 새로운 기능을 추가할 수 있습니다.
+2. **버그 감소**: 기존 코드를 수정하지 않으므로 기존 기능에 영향을 주지 않습니다.
+3. **확장성**: 새로운 요구사항이 생길 때 기존 코드를 변경하지 않고 확장할 수 있습니다.
+
+### How
+
+1. **컴포넌트 composition**: 작은 컴포넌트를 조합하여 더 복잡한 컴포넌트를 만듭니다.
+2. **고차 컴포넌트(HOC)**: 컴포넌트를 감싸서 새로운 기능을 추가합니다.
+3. **렌더 프롭**: 컴포넌트의 렌더링 로직을 외부에서 주입받습니다.
+4. **커스텀 훅**: 로직을 재사용 가능한 훅으로 분리합니다.
+
+### Example
+
+```jsx
+// 나쁜 예시: 버튼 타입이 추가될때 Button컴포넌트를 수정해야 함
+function Button({ type, onClick }) {
+  return (
+    <div className="button-container">
+      <Button onClick={onClick}>
+        {type === "favorite" && <FavoriteIcon />}
+        {type === "delete" && <DeleteIcon />}
+      </Button>
+    </div>
+  );
+}
+
+// 좋은 예시: 버튼 타입이 추가될때 Button컴포넌트를 수정하지 않고 확장할 수 있음
+function Button({ onClick, children }) {
+  return (
+    <div className="button-container">
+      <Button onClick={onClick}>{children}</Button>
+    </div>
+  );
+}
+
+function FavoriteButton({ onClick }) {
+  return (
+    <Button onClick={onClick}>
+      <FavoriteIcon />
+    </Button>
+  );
+}
+
+function DeleteButton({ onClick }) {
+  return (
+    <Button onClick={onClick}>
+      <DeleteIcon />
+    </Button>
+  );
+}
+
+function SomeButton({ onClick }) {
+  return (
+    <Button onClick={onClick}>
+      <SomeIcon />
+    </Button>
+  );
+}
+```
