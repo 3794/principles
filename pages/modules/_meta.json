@@ -1,4 +1,6 @@
 {
   "solid": "SOLID",
-  "single-responsibility-principle": "Single Responsibility Principle"
+  "single-responsibility-principle": "Single Responsibility Principle",
+  "open-closed-principle": "Open/Closed Principle",
+  "liskov-substitution-principle": "Liskov Substitution Principle"
 }
