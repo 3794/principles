@@ -1,12 +1,15 @@
 # Local Reasoning(지역적 추론)
 
-**지역적 추론(Local Reasoning)** 은 프로그램의 특정 부분을 분석하고 검증할 때, 그 부분이 다른 부분과 어떻게 상호작용하는지에 대한 세부 정보를 알 필요 없이,
-해당 부분의 명세만을 기반으로 추론할 수 있도록 하는 방법론이다.
+**Local Reasoning** 은 프로그램의 local만 보고도 그 부분이 올바르게 동작하는지 판단하는 방법이다.
+전체 프로그램의 상태나 구조를 몰라도, 특정 함수나 모듈이 자기 스스로의 [전제조건](/concepts/precondition-and-postcondition#precondition)과 [후속조건](/concepts/precondition-and-postcondition#postcondition)만을 이용해서 reasoning 가능한걸 의미한다.
 
----
+### Example
 
-### 정의
+```typescript
+function increment(x: number) {
+  return x + 1;
+}
+```
 
-### 주요 원리
-
-### Resources
+이 함수는 `x`만 다루기 때문에 `x + 1`만 reasoning 하면 된다.
+즉, `x`에만 집중해서 이 함수의 동작을 증명할 수 있기 때문에 local reasoning이다.
