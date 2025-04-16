@@ -1,7 +1,44 @@
-# Boy Scout Rule
+---
+title: Boy Scout Rule
+---
 
-## 소개
+# Boy Scout Rule(보이 스카웃 규칙)
 
-보이 스카웃 규칙 : 언제나 처음 왔을 때보다 깨끗하게 해놓고 캠프장을 떠날 것.
+Leaving the world a better place
 
-[보이 스카웃 규칙 (johngrib.github.io)](https://johngrib.github.io/wiki/jargon/boy-scout-rule/)
+### Origin
+
+클린코드 1장 깨끗한 코드
+
+> 잘 짠 코드가 전부는 아니다. 시간이 지나도 언제나 깨끗하게 유지해야 한다. 시간이 지나면서 엉망으로 전락하는 코드가 한둘이 아니다. 그러므로 우리는 적극적으로 코드의 퇴보를 막아야 한다.
+> 미국 보이스카우트가 따르는 간단한 규칙이 우리 전문가들에게도 유용하다.
+>
+> **캠프장은 처음 왔을 때보다 더 깨끗하게 해놓고 떠나라.**
+>
+> 체크아웃할 때보다 좀 더 깨끗한 코드를 체크인한다면 코드는 절대 나빠지지 않는다. 한꺼번에 많은 시간과 노력을 투자해 코드를 정리할 필요가 없다. 변수 이름 하나를 개선하고, 조금 긴 함수 하나를 분할하고, 약간의 중복을 제거하고, 복잡한 if 문 하나를 정리하면 충분하다.
+
+### Example
+
+```typescript
+// Before applying Boy Scout Rule
+function calculateTotal(price: number, tax: number): number {
+  const total = price + price * tax;
+  return total;
+}
+```
+
+계산식을 분리하여 taxAmount라는 의미 있는 변수명을 사용함으로써 코드의 가독성을 높인다.
+
+```typescript
+// After applying Boy Scout Rule
+function calculateTotal(price: number, tax: number): number {
+  const taxAmount = price * tax;
+  const total = price + taxAmount;
+  return total;
+}
+```
+
+### Resources
+
+[보이 스카웃 규칙 (johngrib.github.io)](https://johngrib.github.io/wiki/jargon/boy-scout-rule/)  
+[Leaving the world a better place (wikipedia.org)](https://en.wikipedia.org/wiki/Leaving_the_world_a_better_place)
