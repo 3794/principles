@@ -2,14 +2,179 @@
 title: Open/Closed Principle
 ---
 
-# Open/Closed Principle (개방-폐쇄 원칙)
+# Open/Closed Principle, OCP (개방-폐쇄 원칙)
+
+Software entities (classes, modules, functions, etc.) should be open for extension, but closed for
+modification.
+
+---
 
 > "모든 시스템은 생명주기 동안에 변화한다. 이것은 개발 중인 시스템이 첫 번째 버전보다 오래 남길 원한다면 반드시 염두에 두어야할 사실이다." - [이바르 야콥슨](/people/Ivar_Jacobson)
 
 프로그램 한 군데를 변경한 것이 의존적인 모듈에서 단계적인 변경을 불러일으킬 때, 이 설계는 **경직성의 악취** 를 풍긴다.
 OCP가 잘 적용된다면, 이미 제대로 동작하고 있던 원래 코드를 변경하는 것이 아니라 새로운 코드를 덧붙임으로써 변경이 가능해 진다.
-1988년 [Bertrand Meyer](/people/Bertrand_Meyer)이 개방 폐쇄 원칙(OCP Open/Closed Principle)을 제안했다.[^1]
+이러한 OCP는 1988년 [Bertrand Meyer](/people/Bertrand_Meyer)가 제안했다.
+
+**Abstraction is the key**
+
+추상화를 manipulate 할 수 있는 모듈은, 고정된 추상화에 의존하기 때문에 수정에 대해 닫혀 있을 수 있다. 모듈의 behavior는 추상화의 새 파생(derivative)을 만듦으로써 확장이 가능하다.
+
+다음은 OCP를 따르지 않는 간단한 예제이다.
+`drawShape` 함수가 다른 도형을 그리기 위해서는 `drawShape` 함수를 변경해야 한다.
+
+```typescript
+class Circle {
+  drawCircle() {}
+}
+
+class Square {
+  drawSquare() {}
+}
+
+function drawShape(shape: Circle | Square) {
+  if (shape instanceof Circle) {
+    shape.drawCircle();
+  } else {
+    shape.drawSquare();
+  }
+}
+
+drawShape(new Circle());
+drawShape(new Square());
+```
+
+다음은 OCP를 따르는 수정된 디자인이다. `drawShape` 함수가 다른 도형을 그리게 하려면 `Shape` 인터페이스의 파생(derivative) 을 생성하면 된다.
+그러면 `drawShape` 함수는 변경되지 않은 채로 남는다. 즉, Strategy Pattern으로 OCP에 위반되지 않는 디자인을 만들 수 있다.
+
+```typescript
+interface Shape {
+  draw(): void;
+}
+
+class Circle implements Shape {
+  draw() {}
+}
+
+class Square implements Shape {
+  draw() {}
+}
+
+function drawShape(shape: Shape) {
+  shape.draw();
+}
+
+drawShape(new Circle());
+drawShape(new Square());
+```
+
+만약 공통 기능이 필요하다면 Template Method Pattern을 사용할 수 있다.
+
+```typescript
+abstract class Shape {
+  init(color: string) {
+    // initialize the shape
+  }
+  abstract draw(): void;
+}
+
+class Circle extends Shape {
+  draw() {}
+}
+
+class Square extends Shape {
+  draw() {}
+}
+```
+
+이 2개의 패턴, Strategy Pattern과 Template Method Pattern은 OCP를 따르는 가장 흔한 수단이다.
+
+이제 모든 shape를 그리는 기능을 추가해 보자.
+
+```typescript
+function drawAllShape(shapes: Shape[]) {
+  shapes.forEach((shape) => shape.draw());
+}
+
+drawAllShape([new Circle(), new Square()]);
+```
+
+단, 순서 제약 조건이 있다. 모든 Circle은 항상 Square 보다 먼저 그려야 한다면? 이때 `drawAllShape` 함수는 이런 변경에 닫혀 있지 않다.
+함수 내부에서 모든 Circle을 찾아내고 그 다음 Square를 찾아내야 한다.
+
+만약 이러한 변경을 예상했다면, 적절한 추상화를 미리 생각해 냈겠지만, 이전에 구현한 추상화는 이러한 변경에 장애가 될 뿐이다. 그리고 Circle과 Square를 Shape로 추상화 한 것보다 자연스러운 추상화가 있을까?
+
+이러한 생각들은 우리를 혼란스럽게 한다. 하지만 모듈이 얼마나 '닫혀'있든지 '닫혀'있지 않은 것에 대한 변경은 항상 일어난다. **모든 context에 자연스러운 모델은 없다!**
+
+OCP를 적용하는것은 비용이 든다. 복잡성도 증가하며, 항상 예상한 대로 변경이 일어나지도 않는다. 그래서 OCP를 적용하기 위해서는 **변경이 일어날 때까지 기다리는것**이 중요하다
 
 ---
+
+우리는 그리는 순서의 변경에 대해 drawAllShape 함수를 닫기를 원한다. 폐쇄는 추상화에 기반을 둔다. 따라서 순서 추상화가 필요하다.
+
+```typescript
+abstract class Shape {
+  abstract draw(): void;
+  abstract precedes(shape: Shape): boolean;
+  operator(shape: Shape): boolean {
+    return this.precedes(shape);
+  }
+}
+
+class Circle extends Shape {
+  draw() {}
+  precedes(shape: Shape): boolean {
+    if (shape instanceof Square) {
+      return true;
+    }
+    return false;
+  }
+}
+
+function drawAllShape(shapes: Shape[]) {
+  shapes.sort((a, b) => (a.operator(b) ? -1 : 1));
+  shapes.forEach((shape) => shape.draw());
+
+```
+
+`precedes` 추상 메서드를 통해서 순서를 결정했다. 하지만, `Shape`의 새로운 모든 파생에 대해 닫을 수 있는 방법이 없다.
+`Shape`의 새로운 파생이 생성될 때마다, 모든 `precedes` 함수는 변경되어야 한다.
+
+물론 `Shape`의 새로운 파생이 생성되지 않는다면, 문제가 되지 않는다. 하지만 자주 생성된다면 이 디자인은 상당한 양의 스레싱을 유발할 것이다.
+
+테이블 주도 접근 방식(table-driven approach)을 사용해서 해결해 보자.
+
+```typescript
+abstract class Shape {
+  abstract draw(): void;
+  precedes(shape: Shape): boolean {
+    let argOrd = -1;
+    let thisOrd = -1;
+
+    for (let i = 0; i < orderTable.length; i++) {
+      const order = orderTable[i];
+      if (shape instanceof order) {
+        argOrd = i;
+      } else if (this instanceof order) {
+        thisOrd = i;
+      }
+    }
+
+    return thisOrd < argOrd;
+  }
+  operator(shape: Shape): boolean {
+    return this.precedes(shape);
+  }
+}
+
+const orderTable = [Circle, Square];
+```
+
+이 디자인을 통해 `drawAllShape`를 순서 문제에 대해 닫고, `Shape`의 새로운 파생이 생성될 때마다 새로운 순서 정책의 변화에 대해 닫을 수 있다.
+닫히지 않은 유일한 항목은 테이블 뿐이다. 이 테이블은 모든 모듈에서 분리되어 고유한 모듈에 위치할 수 있으므로, 테이블의 변경은 다른 모든 모듈에 영향을 주지 않는다.
+
+---
+
+OCP는 [객체 지향](/concepts/OOP) 설계의 심장이라 할 수 있다. 이 원칙을 따르면 최상의 효용을 낳는다. 하지만 애플리케이션의 모든 부분에 마구 추상화를 적용하는 것은 좋은 생각이 아니다.
+그보다는 프로그램에서 자주 변경되는 부분에만 추상화를 적용하기 위한 개발자의 헌신이 필요하다. **어설픈 추상화를 피하는 일은 추상화 자체만큼이나 중요하다.**[^1]
 
 [^1]: 클린 소프트웨어, [Robert C. Martin](/people/Robert_C._Martin), 2002, Open/Closed Principle
