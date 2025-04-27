@@ -6,6 +6,21 @@ title: Dependency Inversion Principle
 
 - 고수준 모듈은 저수준 모듈에 의존해서는 안 된다. 둘 다 추상화에 의존해야 한다.
 - 추상화는 세부 사항에 의존해서는 안 된다. 세부 사항이 추상화에 의존해야 한다.
+  {/* Button --|> Lamp */}
+
+```mermaid
+classDiagram
+  direction RL
+
+  class Button{
+    + press()
+  }
+  class Lamp{
+    + turnOn()
+    + turnOff()
+  }
+  Lamp <-- Button
+```
 
 ```typescript
 // 저수준 모듈: 램프 구현
@@ -36,6 +51,23 @@ const lampButton = new Button(lamp);
 
 lampButton.press(); // on
 lampButton.press(); // off
+```
+
+```mermaid
+classDiagram
+  class SwitchableDevice {
+    <<Interface>>
+    + turnOn()
+    + turnOff()
+  }
+
+  class Button{
+    + press()
+  }
+
+
+  SwitchableDevice <-- Button
+  SwitchableDevice <|-- Lamp
 ```
 
 ```typescript

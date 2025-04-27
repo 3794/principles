@@ -23,6 +23,21 @@ class ModemImplementation implements Modem {
 }
 ```
 
+```mermaid
+classDiagram
+  class Modem {
+    <<Interface>>
+    + dial(no: string) void
+    + hangup() void
+    + send(message: string) void
+    + receive() string
+  }
+
+  class ModemImplementation {
+  }
+  Modem <|-- ModemImplementation
+```
+
 여기서 `dial`과 `hangup`은 모뎀의 연결을 관리하고, `send`와 `receive`는 데이터를 송수신하는 기능이다.
 
 이 두가지 책임은 분리되어야 할까? 이것은 애플리케이션의 변경에 달려 있다.
@@ -43,6 +58,26 @@ interface DataChannel {
 class ModemImplementation implements Connection, DataChannel {
   //...
 }
+```
+
+```mermaid
+classDiagram
+  class Connection {
+    <<Interface>>
+    + dial(no: string) void
+    + hangup() void
+  }
+
+  class DataChannel {
+    <<Interface>>
+    + send(message: string) void
+    + receive() string
+  }
+
+  class ModemImplementation {
+  }
+  Connection <|-- ModemImplementation
+  DataChannel <|-- ModemImplementation
 ```
 
 하지만 애플리케이션이 서로 다른 시간에 두 가지 책임의 변경을 유발하는 방식으로 바뀌지 않는다면, 이들을 분리하면 안된다. 분리하면 오히려 **[불필요한 복잡성](/concepts/design-smells#불필요한-복잡성)** 이란 악취를 풍기게 된다.
