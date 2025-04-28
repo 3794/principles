@@ -80,6 +80,12 @@ interface TimerClient {
   timeout(): void;
 }
 
+interface Door {
+  lock(): void;
+  unlock(): void;
+  isDoorOpen(): boolean;
+}
+
 class Timer {
   register(delay: number, client: TimerClient) {
     setTimeout(() => {
@@ -87,12 +93,6 @@ class Timer {
     }, delay);
   }
 }
-interface Door {
-  lock(): void;
-  unlock(): void;
-  isDoorOpen(): boolean;
-}
-
 class TimedDoor implements Door, TimerClient {
   private isOpen: boolean = false;
   private timer: Timer;
