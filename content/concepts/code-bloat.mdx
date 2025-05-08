@@ -49,10 +49,10 @@ const mapImage: MapImage = (size, zoom, marker) => {
 
 ```typescript
 const mapImage: MapImage = (size, zoom, marker) => {
-  const URL = "https://map.example.com/api";
-  const fullURL = `${URL}?center=${marker.latitude},${marker.longitude}&size=${size}&zoom=${zoom}`;
+  const url = "https://map.example.com/api";
+  const query = `center=${marker.latitude},${marker.longitude}&size=${size}&zoom=${zoom}`;
 
-  return `<img src="${fullURL}" alt="The map" />`;
+  return `<img src="${url}?${query}" alt="The map" />`;
 };
 ```
 
