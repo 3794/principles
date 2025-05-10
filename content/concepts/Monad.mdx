@@ -1,0 +1,33 @@
+---
+title: Monad
+---
+
+# Monad
+
+### Writer monad
+
+```typescript
+type Writer = [number, string[]];
+type Transform = (x: number) => Writer;
+
+const unit = (value: number): Writer => [value, []];
+
+const squared: Transform = (x: number) => [x * x, [`${x} was squared.`]];
+const halved: Transform = (x: number) => [x / 2, [`${x} was halved.`]];
+
+const bind = (writer: Writer, transform: Transform): Writer => {
+  const [value, log] = writer;
+  const [result, updates] = transform(value);
+  return [result, log.concat(updates)];
+};
+
+const pipelog = (writer: Writer, ...transforms: Transform[]) =>
+  transforms.reduce(bind, writer);
+
+pipelog(unit(4), squared, halved);
+// Resulting writer object = [8, ['4 was squared.', '16 was halved.']]
+```
+
+### Resources
+
+- [Monad (wikipedia.org)](<https://en.wikipedia.org/wiki/Monad_(functional_programming)>)
