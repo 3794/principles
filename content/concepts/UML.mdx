@@ -1,0 +1,67 @@
+---
+title: UML
+---
+
+# UML, Unified Modeling Language
+
+UML은 소프트웨어 공학에서 사용되는 표준화된 범용 모델링 언어이다.
+
+#### Class Example
+
+```mermaid
+classDiagram
+    note "From Duck till Zebra"
+    Animal <|-- Duck
+    note for Duck "can fly\ncan swim\ncan dive\ncan help in debugging"
+    Animal <|-- Fish
+    Animal <|-- Zebra
+    Animal : +int age
+    Animal : +String gender
+    Animal: +isMammal()
+    Animal: +mate()
+    class Duck{
+        +String beakColor
+        +swim()
+        +quack()
+    }
+    class Fish{
+        -int sizeInFeet
+        -canEat()
+    }
+    class Zebra{
+        +bool is_wild
+        +run()
+    }
+```
+
+#### Defining Relationship
+
+| Type  | Description   |
+| ----- | ------------- |
+| `<--` | Inheritance   |
+| `*--` | Composition   |
+| `o--` | Aggregation   |
+| `-->` | Association   |
+| `--`  | Link (Solid)  |
+| `..>` | Dependency    |
+| `..>` | Realization   |
+| `..`  | Link (Dashed) |
+
+```mermaid
+   classDiagram
+classA <|-- classB
+classC *-- classD
+classE o-- classF
+classG <-- classH
+classI -- classJ
+classK <.. classL
+classM <|.. classN
+classO .. classP
+
+
+```
+
+### Resources
+
+- [통합 모델링 언어(wikipedia.org)](https://ko.wikipedia.org/wiki/통합_모델링_언어)
+- [UML(wikipedia.org)](https://en.wikipedia.org/wiki/Unified_Modeling_Language)
