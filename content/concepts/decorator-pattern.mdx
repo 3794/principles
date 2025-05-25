@@ -73,6 +73,32 @@ myCoffee = new SugarDecorator(myCoffee);
 console.log(myCoffee.description(), myCoffee.cost()); // 기본 커피, 우유, 설탕 2800
 ```
 
+```mermaid
+classDiagram
+    class Coffee {
+        <<interface>>
+        + operation()
+    }
+    class CoffeeDecorator {
+        <<interface>>
+        - component: Coffee
+        + operation()
+    }
+    class BasicCoffee {
+        + operation()
+    }
+    class MilkDecorator {
+        + operation()
+    }
+    class SugarDecorator {
+        + operation()
+    }
+    Coffee <|-- BasicCoffee
+    Coffee <|-- CoffeeDecorator
+    CoffeeDecorator <|-- MilkDecorator
+    CoffeeDecorator <|-- SugarDecorator
+```
+
 ### References
 
 - [Decorator Pattern (en.Wikipedia.org)](https://en.wikipedia.org/wiki/Decorator_pattern)
