@@ -1,0 +1,125 @@
+---
+title: Cohesion
+---
+
+# Cohesion
+
+Cohesion(응집도)는 모듈 내부의 요소들이 함께 속하는 정도를 의미한다.
+
+일반적으로 "높은 응집도" 혹은 "낮은 응집도"로 설명된다. 높은 응집도를 가진 모듈이 선호되는데, 이는 높은 응집도가 견고성, 신뢰성, 재사용성 등 여러 바람직한 소프트웨어 특성과 연관되어 있기 때문.
+반대로 낮은 응집도는 유지보수, 테스트, 재사용, 이해가 어려운등의 바람직하지 않은 특성과 연관된다.
+
+cohesion은 coupling(결합도)와 대조된다. 높은 응집도는 느슨한 결합과 상관관계가 있으며 그 반대도 마찮가지 이다.
+coupling과 cohesion의 소프트웨어 매트릭은 1960년대 후반 Larry Constantine이 정의하였다.
+
+### Types of cohesion
+
+우연적 응집도 (Coincidental Cohesion) - 최악
+
+```typescript
+// 관련 없는 기능들이 임의로 그룹화됨
+class Utilities {
+  // 수학 계산
+  calculateTax(amount: number): number {
+    return amount * 0.1;
+  }
+
+  // 문자열 처리
+  formatString(str: string): string {
+    return str.toUpperCase();
+  }
+
+  // 파일 처리
+  saveToFile(data: string): void {
+    // 파일 저장 로직
+  }
+
+  // 네트워크 통신
+  sendEmail(email: string): void {
+    // 이메일 전송 로직
+  }
+}
+```
+
+논리적 응집도 (Logical Cohesion)
+
+```typescript
+// 논리적으로 관련된 기능들을 그룹화
+class InputHandler {
+  handleInput(inputType: "mouse" | "keyboard" | "touch", data: any): void {
+    switch (inputType) {
+      case "mouse":
+        this.handleMouseInput(data);
+        break;
+      case "keyboard":
+        this.handleKeyboardInput(data);
+        break;
+      case "touch":
+        this.handleTouchInput(data);
+        break;
+    }
+  }
+
+  private handleMouseInput(data: any): void {
+    // 마우스 입력 처리
+  }
+
+  private handleKeyboardInput(data: any): void {
+    // 키보드 입력 처리
+  }
+
+  private handleTouchInput(data: any): void {
+    // 터치 입력 처리
+  }
+}
+```
+
+기능적 응집도 (Functional Cohesion) - 최선
+
+```typescript
+// 단일하고 잘 정의된 작업을 수행하는 기능들
+class MathCalculator {
+  // 모든 메서드가 수학 계산이라는 단일 목적에 기여
+  add(a: number, b: number): number {
+    return a + b;
+  }
+
+  subtract(a: number, b: number): number {
+    return a - b;
+  }
+
+  multiply(a: number, b: number): number {
+    return a * b;
+  }
+
+  divide(a: number, b: number): number {
+    if (b === 0) {
+      throw new Error("Division by zero");
+    }
+    return a / b;
+  }
+}
+```
+
+완벽한 응집도 (Perfect/Atomic Cohesion)
+
+```typescript
+// 더 이상 분해할 수 없는 단일 기능
+class TemperatureConverter {
+  // 단일 원자적 기능
+  celsiusToFahrenheit(celsius: number): number {
+    return (celsius * 9) / 5 + 32;
+  }
+}
+
+class StringReverser {
+  // 단일 원자적 기능
+  reverse(str: string): string {
+    return str.split("").reverse().join("");
+  }
+}
+```
+
+### References
+
+- [Cohesion (wikipedia.org)](<https://en.wikipedia.org/wiki/Cohesion_(computer_science)>)
