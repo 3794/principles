@@ -1,0 +1,146 @@
+---
+title: Clean Architecture
+---
+
+# Clean Architecture
+
+클린 아키텍처는 [Robert C. Martin](/people/Robert_C._Martin)이 제안한 소프트웨어 아키텍처 패턴으로, 독립적이고 테스트 가능하며 UI, DB, 프레임워크로부터 독립적인 시스템을 설계하는 것을 목표로 한다.
+
+## Core Principles(핵심 원칙)
+
+- **The Dependency Rule** - 소스 코드 의존성은 안쪽으로만 향해야 한다
+- **Framework Independent** - 프레임워크에 종속적이지 않아야 한다
+- **Testable** - 비즈니스 로직이 DB, UI, 외부 요소 없이 테스트되어야 한다
+- **UI Independent** - UI 변경이 나머지 시스템에 영향을 주지 않아야 한다
+- **Database Independent** - DB 변경이 비즈니스 로직에 영향을 주지 않아야 한다
+
+## Concentric Layers(동심원 계층)
+
+1. **Entities(엔티티)** - 가장 안쪽, 핵심 비즈니스 규칙
+2. **Use Cases(유스케이스)** - 애플리케이션 비즈니스 규칙
+3. **Interface Adapters(인터페이스 어댑터)** - 변환기, 컨트롤러, 게이트웨이
+4. **Frameworks & Drivers(프레임워크 & 드라이버)** - 가장 바깥쪽, DB, UI, 웹 프레임워크
+
+## Key Benefits(주요 이점)
+
+- 비즈니스 로직이 외부 의존성으로부터 분리됨
+- 높은 테스트 커버리지 달성 가능
+- 프레임워크 변경 시 영향 최소화
+- 코드 유지보수성 향상
+- 팀 협업이 용이함
+
+## Simple Example(간단한 예제)
+
+TODO 애플리케이션을 Clean Architecture로 구현한 예제이다.
+
+### 1. Entities (핵심 비즈니스 규칙)
+
+```typescript
+// src/entities/Todo.ts
+export interface Todo {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+export class CreateTodoRequest {
+  constructor(public title: string) {
+    if (!title || title.trim().length === 0) {
+      throw new Error("Title cannot be empty");
+    }
+  }
+}
+```
+
+### 2. Use Cases (애플리케이션 로직)
+
+```typescript
+// src/usecases/CreateTodoUseCase.ts
+import { Todo, CreateTodoRequest } from "../entities/Todo";
+
+export interface TodoRepository {
+  save(todo: Todo): Promise<void>;
+}
+
+export class CreateTodoUseCase {
+  constructor(private todoRepository: TodoRepository) {}
+
+  async execute(request: CreateTodoRequest): Promise<Todo> {
+    const todo: Todo = {
+      id: Math.random().toString(),
+      title: request.title,
+      completed: false,
+    };
+
+    await this.todoRepository.save(todo);
+    return todo;
+  }
+}
+```
+
+### 3. Interface Adapters (변환 계층)
+
+```typescript
+// src/adapters/TodoRepositoryImpl.ts
+import { TodoRepository } from "../usecases/CreateTodoUseCase";
+import { Todo } from "../entities/Todo";
+import { Database } from "./Database";
+
+export class TodoRepositoryImpl implements TodoRepository {
+  constructor(private db: Database) {}
+
+  async save(todo: Todo): Promise<void> {
+    await this.db.insert("todos", todo);
+  }
+}
+
+// src/controllers/TodoController.ts
+import { CreateTodoUseCase } from "../usecases/CreateTodoUseCase";
+import { CreateTodoRequest } from "../entities/Todo";
+
+export class TodoController {
+  constructor(private createTodoUseCase: CreateTodoUseCase) {}
+
+  async create(req: any, res: any) {
+    try {
+      const request = new CreateTodoRequest(req.body.title);
+      const todo = await this.createTodoUseCase.execute(request);
+      res.json(todo);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+}
+```
+
+### 4. Frameworks & Drivers (외부 요소)
+
+```typescript
+// src/main.ts (Express 프레임워크)
+import express from "express";
+import { Database } from "./adapters/Database";
+import { TodoRepositoryImpl } from "./adapters/TodoRepositoryImpl";
+import { CreateTodoUseCase } from "./usecases/CreateTodoUseCase";
+import { TodoController } from "./controllers/TodoController";
+
+const app = express();
+const db = new Database();
+const repository = new TodoRepositoryImpl(db);
+const useCase = new CreateTodoUseCase(repository);
+const controller = new TodoController(useCase);
+
+app.post("/todos", (req, res) => controller.create(req, res));
+app.listen(3000);
+```
+
+### Key Points(핵심 포인트)
+
+- **Entities**: 순수한 비즈니스 규칙만 포함 (프레임워크/DB 모름)
+- **Use Cases**: 비즈니스 로직과 플로우 구현
+- **Adapters**: 외부 시스템(DB, 웹 프레임워크)과의 통신
+- **의존성 방향**: 안쪽으로만 향함 (밖의 계층은 안쪽을 모름)
+
+### References
+
+- [The Clean Architecture(blog.cleancoder.com)](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [Clean Architecture(wikipedia.org)](https://en.wikipedia.org/wiki/Clean_architecture)

@@ -21,7 +21,7 @@
     "@vercel/analytics": "^1.5.0",
     "lucide": "^0.479.0",
     "lucide-react": "^0.479.0",
-    "next": "^15.1.7",
+    "next": "15.1.11",
     "nextra": "^4.2.13",
     "nextra-theme-docs": "^4.2.13",
     "react": "^19.0.0",
