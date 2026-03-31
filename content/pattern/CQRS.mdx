@@ -1,0 +1,211 @@
+---
+title: CQRS
+---
+
+# CQRS (Command Query Responsibility Segregation)
+
+CQRS는 명령(쓰기)과 조회(읽기)의 책임을 분리하는 아키텍처 패턴이다. 같은 모델을 사용하는 대신, 각 작업에 최적화된 별도의 모델을 유지한다.
+
+## Core Concepts(핵심 개념)
+
+- **Command** - 데이터를 변경하는 작업 (Create, Update, Delete)
+- **Query** - 데이터를 조회하는 작업 (Read)
+- **Separation** - 명령과 조회는 완전히 분리된 모델 사용
+- **Optimized Models** - 각 모델은 자신의 목적에 최적화됨
+
+## Key Benefits(주요 이점)
+
+- 읽기와 쓰기 성능을 독립적으로 최적화할 수 있음
+- 복잡한 쿼리를 단순화
+- 이벤트 소싱과 결합하여 강력한 시스템 구축
+- 스케일링이 용이함 (읽기/쓰기 서버 분리)
+- 명확한 책임 분리로 코드 이해 용이
+
+## Simple Example(간단한 예제)
+
+은행 계좌 시스템을 CQRS로 구현한 예제이다.
+
+### 1. Models (모델 분리)
+
+```typescript
+// src/models/commands/AccountModel.ts (쓰기 모델)
+export class AccountModel {
+  constructor(
+    public id: string,
+    public balance: number,
+  ) {}
+
+  deposit(amount: number): void {
+    if (amount <= 0) throw new Error("Amount must be positive");
+    this.balance += amount;
+  }
+
+  withdraw(amount: number): void {
+    if (amount > this.balance) throw new Error("Insufficient balance");
+    this.balance -= amount;
+  }
+}
+
+// src/models/queries/AccountReadModel.ts (읽기 모델)
+export interface AccountReadModel {
+  id: string;
+  balance: number;
+  lastTransactionDate: Date;
+  totalTransactions: number;
+}
+```
+
+### 2. Commands (명령 처리)
+
+```typescript
+// src/commands/DepositCommand.ts
+export class DepositCommand {
+  constructor(
+    public accountId: string,
+    public amount: number,
+  ) {}
+}
+
+// src/commandHandlers/DepositCommandHandler.ts
+import { DepositCommand } from "../commands/DepositCommand";
+import { AccountRepository } from "../repositories/AccountRepository";
+import { EventBus } from "../events/EventBus";
+
+export class DepositCommandHandler {
+  constructor(
+    private accountRepository: AccountRepository,
+    private eventBus: EventBus,
+  ) {}
+
+  async handle(command: DepositCommand): Promise<void> {
+    const account = await this.accountRepository.getById(command.accountId);
+    account.deposit(command.amount);
+
+    await this.accountRepository.save(account);
+
+    // 이벤트 발행
+    this.eventBus.publish({
+      type: "MoneyDeposited",
+      accountId: command.accountId,
+      amount: command.amount,
+      timestamp: new Date(),
+    });
+  }
+}
+```
+
+### 3. Queries (조회 처리)
+
+```typescript
+// src/queries/GetAccountBalanceQuery.ts
+export class GetAccountBalanceQuery {
+  constructor(public accountId: string) {}
+}
+
+// src/queryHandlers/GetAccountBalanceQueryHandler.ts
+import { GetAccountBalanceQuery } from "../queries/GetAccountBalanceQuery";
+import { AccountReadModelRepository } from "../repositories/AccountReadModelRepository";
+
+export class GetAccountBalanceQueryHandler {
+  constructor(private readModelRepository: AccountReadModelRepository) {}
+
+  async handle(query: GetAccountBalanceQuery): Promise<number> {
+    const readModel = await this.readModelRepository.getById(query.accountId);
+    return readModel.balance;
+  }
+}
+```
+
+### 4. Event Bus & Read Model Update
+
+```typescript
+// src/events/EventBus.ts
+export class EventBus {
+  private handlers: Map<string, Function[]> = new Map();
+
+  subscribe(eventType: string, handler: Function): void {
+    if (!this.handlers.has(eventType)) {
+      this.handlers.set(eventType, []);
+    }
+    this.handlers.get(eventType)!.push(handler);
+  }
+
+  publish(event: any): void {
+    const handlers = this.handlers.get(event.type) || [];
+    handlers.forEach((handler) => handler(event));
+  }
+}
+
+// src/eventHandlers/MoneyDepositedEventHandler.ts
+import { AccountReadModelRepository } from "../repositories/AccountReadModelRepository";
+
+export class MoneyDepositedEventHandler {
+  constructor(private readModelRepository: AccountReadModelRepository) {}
+
+  async handle(event: any): Promise<void> {
+    // 읽기 모델 업데이트
+    const readModel = await this.readModelRepository.getById(event.accountId);
+    readModel.balance += event.amount;
+    readModel.lastTransactionDate = event.timestamp;
+    readModel.totalTransactions += 1;
+
+    await this.readModelRepository.save(readModel);
+  }
+}
+```
+
+### 5. Application Usage
+
+```typescript
+// src/main.ts
+import { DepositCommand } from "./commands/DepositCommand";
+import { GetAccountBalanceQuery } from "./queries/GetAccountBalanceQuery";
+import { DepositCommandHandler } from "./commandHandlers/DepositCommandHandler";
+import { GetAccountBalanceQueryHandler } from "./queryHandlers/GetAccountBalanceQueryHandler";
+
+class Application {
+  constructor(
+    private depositCommandHandler: DepositCommandHandler,
+    private getBalanceQueryHandler: GetAccountBalanceQueryHandler,
+  ) {}
+
+  async depositMoney(accountId: string, amount: number): Promise<void> {
+    // 명령 실행 (쓰기)
+    const command = new DepositCommand(accountId, amount);
+    await this.depositCommandHandler.handle(command);
+  }
+
+  async getBalance(accountId: string): Promise<number> {
+    // 조회 실행 (읽기)
+    const query = new GetAccountBalanceQuery(accountId);
+    return await this.getBalanceQueryHandler.handle(query);
+  }
+}
+```
+
+## Key Points(핵심 포인트)
+
+- **읽기와 쓰기 분리**: 명령과 조회가 완전히 독립적이다
+- **이벤트 기반**: 모든 변경이 이벤트로 발행되고 읽기 모델 업데이트된다
+- **독립적 최적화**: 각 모델을 자신의 목적에 맞춰 최적화할 수 있다
+- **높은 성능**: 읽기 쿼리를 캐싱하거나 전용 저장소 사용이 가능하다
+- **복잡한 도메인에 효과적**: 도메인 로직이 복잡할수록 가치가 증가한다
+
+## CQS(Command Query Separation)와의 관계
+
+CQRS는 [Command-query separation](/generic/Command-query_separation)의 개념을 아키텍처 수준으로 확장한 것이다.
+
+**CQS**는 메소드 수준에서 명령(상태 변경)과 쿼리(값 반환)를 분리하는 원칙이며, **CQRS**는 이 원칙을 애플리케이션 수준으로 확대하여 완전히 다른 모델과 데이터 저장소를 사용한다.
+
+- **CQS**: 메서드 또는 함수 수준의 설계 원칙
+- **CQRS**: 시스템 아키텍처 수준의 패턴
+
+CQRS는 CQS의 철학을 따르면서도 복잡한 시스템에서 더 강력한 이점을 제공한다.
+
+## CQRS와 Event Sourcing
+
+CQRS는 Event Sourcing과 함께 사용될 때 최대의 가치를 발휘한다. 모든 변경을 이벤트로 저장하고, 읽기 모델은 이벤트 스트림으로부터 재구성될 수 있다.
+
+### References
+
+- [CQRS(martinfowler.com)](https://martinfowler.com/bliki/CQRS.html)
