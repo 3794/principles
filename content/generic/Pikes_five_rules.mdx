@@ -1,0 +1,284 @@
+---
+title: Pike's Five Rules
+---
+
+# Pike's Five Rules (파이크의 5가지 규칙)
+
+**Pike's Five Rules**는 [Rob Pike](https://en.wikipedia.org/wiki/Rob_Pike)가 제시한 소프트웨어 성능 최적화와 설계의 원칙이다. 단순함과 실측 기반 의사결정을 강조한다.
+
+## 다섯 가지 규칙
+
+### 1. You can't tell where a program is going to spend its time. Bottlenecks occur in surprising places.
+
+**프로그램이 시간을 어디에 쓸지 알 수 없다. 병목 현상은 예상 밖의 곳에서 발생한다.**
+
+많은 개발자들은 직관이나 경험으로 병목 지점을 예측하려고 한다. 하지만 현실은 정반대다.
+
+```typescript
+// 개발자의 예상
+function process(data: number[]) {
+  // "이 복잡한 알고리즘이 느릴 거야"
+  const sorted = complexSort(data);
+  
+  // "이건 빠를 거야"
+  const result = sorted.map(x => x * 2);
+  
+  // "문자열 생성은 별로 오버헤드 없을 거야"
+  return result.map(x => `Result: ${x}`).join('\n');
+}
+```
+
+**실제 측정 결과:**
+```
+복잡한 알고리즘: 5%
+map 연산: 10%
+문자열 생성 및 join: 85% ⚠️ ← 예상과 정반대!
+```
+
+**핵심:** 추측하지 말고 **측정하라**.
+
+### 2. Measure performance before optimizing, and only tune if one section clearly dominates the rest.
+
+**최적화 전에 성능을 측정하고, 한 섹션이 명백하게 지배할 때만 튜닝하라**
+
+최적화는 측정에서 시작된다. 측정 없는 최적화는 낭비다.
+
+```typescript
+// ❌ 나쁜 방식: 측정 없이 최적화
+function optimizeEverything(data: number[]) {
+  // "더 효율적일 거야"라고 생각하며 복잡하게 작성
+  const result = data.reduce((acc, x, i) => {
+    if (i % 2 === 0) acc.push(x * x);
+    return acc;
+  }, []);
+  
+  // "성능 향상"을 위해 캐싱 추가
+  const cache = new Map();
+  // ... 복잡한 로직
+}
+```
+
+```typescript
+// ✅ 좋은 방식: 측정 후 최적화
+function processWithMeasurement(data: number[]) {
+  console.time('filter');
+  const filtered = data.filter((_, i) => i % 2 === 0);
+  console.timeEnd('filter');
+  
+  console.time('map');
+  const result = filtered.map(x => x * x);
+  console.timeEnd('map');
+  
+  // 측정 결과: map이 80% 시간 소비 → 이것만 최적화
+}
+```
+
+**최적화 절차:**
+1. **측정** - 프로파일러로 각 섹션의 시간 확인
+2. **확인** - 한 섹션이 지배적인지 확인 (보통 80% 이상)
+3. **선택** - 그 섹션만 최적화
+4. **재측정** - 개선되었는지 확인
+
+### 3. Simple approaches work better for small datasets, as complex algorithms carry heavy overhead. Stick with straightforward methods unless you know n will frequently be large.
+
+**작은 데이터셋에서는 단순한 방식이 더 낫다. 복잡한 알고리즘은 오버헤드가 크다. n이 자주 크지 않으면 직선적인 방식을 고수하라**
+
+복잡한 알고리즘은 n이 작을 때 오버헤드 때문에 오히려 느릴 수 있다.
+
+```typescript
+// 예: n = 10일 때
+const n = 10;
+
+// ❌ 과도한 최적화: O(n log n) 병합정렬
+function mergeSort(arr: number[]): number[] {
+  if (arr.length <= 1) return arr;
+  const mid = Math.floor(arr.length / 2);
+  return merge(mergeSort(arr.slice(0, mid)), mergeSort(arr.slice(mid)));
+}
+// 오버헤드: 배열 복사, 함수 호출, 메모리 재할당 등
+
+// ✅ 효율적: O(n²) 단순 정렬
+function simpleSort(arr: number[]): number[] {
+  for (let i = 0; i < arr.length; i++) {
+    for (let j = i + 1; j < arr.length; j++) {
+      if (arr[i] > arr[j]) {
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+  }
+  return arr;
+}
+// 오버헤드 최소, 직관적, 빠름
+```
+
+**성능 비교 (실제 측정):**
+```
+n = 10:   simpleSort 0.1ms vs mergeSort 0.5ms (5배 차이!)
+n = 1000: simpleSort 50ms vs mergeSort 10ms (5배 역전)
+```
+
+**핵심:** n이 작으면 단순함이 최고다.
+
+### 4. Simpler algorithms and data structures are less error-prone and easier to implement than intricate alternatives.
+
+**단순한 알고리즘과 자료구조가 복잡한 것보다 에러가 적고 구현하기 쉽다**
+
+성능만 고려하면 버그를 만든다.
+
+```typescript
+// ❌ 복잡: 성능을 위한 자료구조
+class ComplexCache {
+  private buckets: Map<number, LinkedList<[string, any]>[]> = new Map();
+  private bloomFilter: BloomFilter;
+  private lru: LRUCache;
+  
+  get(key: string): any {
+    // 10개 이상의 조건 체크
+    const hash = this.hash(key);
+    if (!this.bloomFilter.mightContain(hash)) return null;
+    const bucket = this.buckets.get(hash);
+    if (!bucket) return null;
+    
+    const linkedList = bucket[hash % bucket.length];
+    let current = linkedList.head;
+    while (current) {
+      if (current.data[0] === key) {
+        this.lru.access(key);
+        return current.data[1];
+      }
+      current = current.next;
+    }
+    return null;
+  }
+}
+```
+
+```typescript
+// ✅ 단순: Map만으로 충분
+class SimpleCache {
+  private cache: Map<string, any> = new Map();
+  
+  get(key: string): any {
+    return this.cache.get(key);
+  }
+  
+  set(key: string, value: any): void {
+    this.cache.set(key, value);
+  }
+}
+
+// 이것으로 충분한 경우가 대부분!
+```
+
+**이점:**
+- 버그가 적음 (코드가 짧을수록 버그도 적음)
+- 유지보수 쉬움
+- 이해하기 쉬움
+- 성능이 "충분함" (rule 1과 2를 통과하지 못하면 상관없음)
+
+### 5. Data dominates. If you've chosen the right data structures and organized things well, the algorithms will almost always be self-evident.
+
+**데이터가 지배한다. 올바른 자료구조를 선택하고 잘 조직하면 알고리즘은 거의 항상 자명해진다**
+
+좋은 설계의 핵심은 알고리즘이 아니라 **데이터 구조**다.
+
+```typescript
+// ❌ 나쁜 데이터 구조
+const users = [
+  { id: 1, name: 'Alice', email: 'alice@...' },
+  { id: 2, name: 'Bob', email: 'bob@...' },
+  // ...
+];
+
+function findUserById(id: number) {
+  // 알고리즘이 복잡함: O(n) 선형 탐색
+  for (const user of users) {
+    if (user.id === id) return user;
+  }
+  return null;
+}
+
+function findUserByEmail(email: string) {
+  // 또 다른 복잡한 탐색
+  for (const user of users) {
+    if (user.email === email) return user;
+  }
+  return null;
+}
+```
+
+```typescript
+// ✅ 좋은 데이터 구조
+const usersByID = new Map<number, User>();
+const usersByEmail = new Map<string, User>();
+
+function findUserById(id: number) {
+  // 알고리즘이 자명함: O(1) 조회
+  return usersByID.get(id);
+}
+
+function findUserByEmail(email: string) {
+  // 알고리즘이 자명함: O(1) 조회
+  return usersByEmail.get(email);
+}
+```
+
+**핵심:**
+- 데이터를 먼저 생각한다
+- 적절한 구조를 선택하면
+- 알고리즘은 자동으로 따라온다
+
+## 규칙들의 통합 메시지
+
+| 규칙 | 핵심 |
+|------|------|
+| **1번** | 병목을 추측하지 말고 **측정하라** |
+| **2번** | 측정 후 **명백한 부분만 튜닝** |
+| **3번** | 작은 데이터는 **단순함이 최고** |
+| **4번** | 단순함이 **버그도 적고 유지보수도 쉽다** |
+| **5번** | 알고리즘보다 **데이터 구조가 중요** |
+
+**통합 철학:** "측정 기반의 현실적 최적화, 그리고 단순함의 가치"
+
+## 실제 적용 예제
+
+```typescript
+// 팀이 사용자 검색 기능을 만든다고 하자
+
+// ❌ 규칙 없는 방식
+// 1. 추측으로 B-트리 인덱스 사용 (복잡함)
+// 2. 마이크로 최적화로 각 함수 최적화
+// 3. 캐싱 레이어 추가
+// 결과: 복잡, 버그 많음, 실제 성능 안 나음
+
+// ✅ Pike's Rules 적용
+// 1. 단순 배열로 시작 (rule 3, 4, 5)
+const users: User[] = [];
+
+function findUser(id: number) {
+  return users.find(u => u.id === id);
+}
+
+// 2. 측정 (rule 1, 2)
+// → 결과: 충분히 빠름 (n=1000일 때 < 1ms)
+
+// 3. 필요시만 최적화 (rule 2)
+// → 측정 결과: Map이 지배적인 시간 소비 확인
+// → rule 5: Map 구조로 변경
+const usersById = new Map<number, User>();
+```
+
+## 결론
+
+Pike's Rules는 **성능 최적화에 대한 현실적인 가이드**다:
+- **추측 X, 측정 O**
+- **모든 것 최적화 X, 병목만 최적화 O**
+- **복잡함 X, 단순함 O**
+- **알고리즘 먼저 X, 데이터 구조 먼저 O**
+
+이 원칙들을 따르면 유지보수하기 쉬운 빠른 코드를 만들 수 있다.
+
+### References
+
+- [Rob Pike's Rules (UNC Computer Science)](https://www.cs.unc.edu/~stotts/COMP590-059-f24/robsrules.html)
+- [Rob Pike on Performance](https://www.youtube.com/watch?v=cN_DpYBzKLo)
