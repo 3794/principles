@@ -5,22 +5,22 @@ title: Liskov Substitution Principle
 # LSP, Liskov Substitution Principle (리스코프 치환 원칙)
 
 리스코프 치환 원칙은 1987년 [Barbara Liskov](/people/Barbara_Liskov)가 제안한 객체지향 프로그래밍과 소프트웨어 설계에 대한 원칙으로, 이 원칙은 SOLID 원칙중 L에 해당한다.
-**슈퍼타입을 서브타입으로 치환(substitution)해도 프로그램의 동작이 변하지 않아야 한다** 는 것을 강조한다.
+**슈퍼타입을 서브타입으로 [치환(substitution)](/concepts/Substitutability)해도 프로그램의 동작이 변하지 않아야 한다** 는 것을 강조한다.
 
-### Why
+### LSP 위반 사례
 
-- 프로그램의 안정성과 재사용성을 높인다.
+**Rectangle의 계약(Contract):**
 
-### How
-
-- 하위 클래스는 상위 클래스의 특정 조건을 만족하는 것을 보장해야 한다.
-
-### Example
+- `setWidth(w)`를 호출하면 너비만 변경되고 높이는 유지된다
+- `setHeight(h)`를 호출하면 높이만 변경되고 너비는 유지된다
 
 ```ts
 // Rectangle 클래스
 class Rectangle {
-  constructor(protected width: number, protected height: number) {}
+  constructor(
+    protected width: number,
+    protected height: number,
+  ) {}
 
   setWidth(width: number) {
     this.width = width;
@@ -35,24 +35,112 @@ class Rectangle {
   }
 }
 
-// Square 클래스 (LSP 위반)
+// Square 클래스 (LSP 위반!)
 class Square extends Rectangle {
   setWidth(width: number) {
     this.width = width;
-    this.height = width; // 정사각형은 너비와 높이가 같아야 함
+    this.height = width; // 계약 위반: height도 변경됨
   }
 
   setHeight(height: number) {
     this.width = height;
-    this.height = height; // 정사각형은 너비와 높이가 같아야 함
+    this.height = height; // 계약 위반: width도 변경됨
   }
 }
 
-// 사용 예시
-const rectangle: Rectangle = new Square(5, 5);
-rectangle.setWidth(10);
-console.log(rectangle.getArea()); // 예상: 50, 실제: 100
+// LSP 위반 증명
+function test(rect: Rectangle) {
+  rect.setWidth(5);
+  rect.setHeight(4);
+  const expectedArea = 5 * 4; // 20
+  const actualArea = rect.getArea();
+  console.log(`예상 넓이: ${expectedArea}, 실제 넓이: ${actualArea}`);
+}
+
+test(new Rectangle(0, 0)); // 예상: 20, 실제: 20 ✓
+test(new Square(0, 0)); // 예상: 20, 실제: 16 ✗ (LSP 위반!)
 ```
+
+**문제점:**
+
+- `Square`는 `Rectangle`의 자리에 대체될 수 없다
+- 클라이언트는 Rectangle의 계약을 기대하지만, Square는 그것을 지키지 않는다
+- 수학적으로는 정사각형이 직사각형이지만, **프로그래밍 관점에서는 다른 행동**을 한다
+
+### 올바른 설계
+
+**방법 1: 공통 인터페이스 사용**
+
+```ts
+// Shape 인터페이스
+interface Shape {
+  getArea(): number;
+}
+
+// Rectangle
+class Rectangle implements Shape {
+  constructor(
+    private width: number,
+    private height: number,
+  ) {}
+
+  setWidth(width: number) {
+    this.width = width;
+  }
+
+  setHeight(height: number) {
+    this.height = height;
+  }
+
+  getArea(): number {
+    return this.width * this.height;
+  }
+}
+
+// Square (별도 구현)
+class Square implements Shape {
+  constructor(private side: number) {}
+
+  setSide(side: number) {
+    this.side = side;
+  }
+
+  getArea(): number {
+    return this.side * this.side;
+  }
+}
+
+// 이제 안전함
+function test(shape: Shape) {
+  console.log(`넓이: ${shape.getArea()}`);
+}
+
+test(new Rectangle(5, 4)); // 넓이: 20
+test(new Square(5)); // 넓이: 25
+```
+
+**방법 2: 조합 사용**
+
+```ts
+class Square {
+  constructor(private rectangle: Rectangle) {}
+
+  setSide(side: number) {
+    this.rectangle.setWidth(side);
+    this.rectangle.setHeight(side);
+  }
+
+  getArea(): number {
+    return this.rectangle.getArea();
+  }
+}
+```
+
+## 핵심 원칙
+
+1. **행동 기반 타입 관계**
+2. **계약 준수** - 서브타입은 슈퍼타입의 계약을 완벽하게 이행해야 함
+3. **클라이언트 관점** - 클라이언트가 예상하는 행동이 유지되어야 함
 
 ### References
 

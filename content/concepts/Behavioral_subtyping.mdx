@@ -2,29 +2,368 @@
 title: Behavioral Subtyping
 ---
 
-# Behavioral Subtyping(행동적 서브타이핑)
+# Behavioral Subtyping (행동적 서브타이핑)
 
-**Behavioral Subtyping**은 **Barbara Liskov**와 **Jeannette Wing**이 고안한 개념이다.
-이들은 객체 지향 프로그래밍에서 서브타입과 슈퍼타입 간의 관계를 정의할 때 행동적 일관성을 강조하며, 이를 1994년 논문 "A Behavioral Notion of Subtyping"에서 체계적으로 설명했다.
+**행동적 서브타이핑(Behavioral Subtyping)** 은 단순히 **메서드가 있다**고 해서 서브타입이 되는 것이 아니라, **슈퍼타입과 같은 행동을 해야** 서브타입이라는 개념이다.
 
----
+**핵심 질문:** "메서드 이름은 같은데 행동이 다르면 진짜 서브타입인가?"
 
-### 개발 배경
+**답:** 아니다. 행동적 서브타이핑 관점에서는 **행동이 다르면 서브타입이 아니다.**
 
-- Barbara Liskov는 1987년 OOPSLA 컨퍼런스에서 데이터 추상화와 클래스 계층 구조에 관한 기조 연설을 통해 **[Liskov Substitution Principle](/modules/Liskov-substitution_principle)** 을 소개했다. 이 원칙은 서브타입이 슈퍼타입으로 대체될 수 있어야 한다는 대체 가능성(substitutability)을 강조했다.
-- 이후 Jeannette Wing과 함께 LSP의 개념을 확장하여 행동적 서브타이핑(Behavioral Subtyping)을 정의했다. 이는 단순히 서브타입의 구조적 호환성을 넘어서, 슈퍼타입의 모든 행동적 특성을 서브타입에서도 유지할 것을 요구한다.
+## 핵심 개념
 
-### 주요 기여
+행동적 서브타이핑은 **[Design by Contract](/concepts/Design_by_contract)** 관점에서 정의된다:
 
-- **Barbara Liskov**는 객체 지향 프로그래밍 언어 설계에서 다형성과 타입 계층 구조를 연구하며 이론적 기반을 제공했다.
-  그녀는 서브타입 관계를 정의할 때 [전제조건](/concepts/Precondition_Postcondition_and_Invariant/#precondition),
-  [후속조건](/concepts/Precondition_Postcondition_and_Invariant/#postcondition),
-  [불변 조건](/concepts/Precondition_Postcondition_and_Invariant/#invariant) 등을 포함한 행동적 사양(specifications)을 고려해야 한다고 주장했다.
-- **Jeannette Wing**은 이러한 아이디어를 더욱 형식적으로 발전시켜 행동적 서브타이핑을 수학적으로 검증 가능한 방식으로 정립하는 데 기여했다. 특히 히스토리 속성(history properties)과 제약(constraints)을 추가하여 타입 간 관계를 명확히 했다.
+- **Precondition (전제조건)** - 호출 전 만족해야 할 조건
+- **Postcondition (후조건)** - 호출 후 보장되는 결과
+- **Invariant (불변식)** - 항상 참이어야 하는 조건
 
-### 결론
+서브타입이 이들을 지키지 않으면 **행동적 서브타이핑을 위반**한다.
 
-Behavioral Subtyping은 객체 지향 설계에서 타입 계층 구조를 정의하고 검증하는 데 중요한 개념으로 자리 잡았으며, Barbara Liskov와 Jeannette Wing의 협업을 통해 고안되고 발전되었다. 이 개념은 프로그램의 안정성과 일관성을 유지하면서 다형성을 효과적으로 활용할 수 있도록 돕는다.
+## 간단한 예제
+
+### ❌ 행동적 서브타이핑 위반
+
+```typescript
+// 새(Bird) - 슈퍼타입
+class Bird {
+  /**
+   * 행동: 날 수 있음
+   * Postcondition: 높이 > 0
+   */
+  fly(): number {
+    return 100; // 높이 100까지 날아올라감
+  }
+}
+
+// 펭귄(Penguin) - 서브타입인가?
+class Penguin extends Bird {
+  /**
+   * 문제: Bird와 다른 행동!
+   * Postcondition 위반: 높이가 0 (못 날아오름)
+   */
+  fly(): number {
+    return 0; // 높이 0 - 날 수 없음!
+  }
+}
+
+// 증명: 행동이 다르다
+function birdAction(bird: Bird) {
+  const height = bird.fly();
+  console.log(`높이: ${height}m`);
+}
+
+birdAction(new Bird()); // 높이: 100m ✓
+birdAction(new Penguin()); // 높이: 0m ✗ (예상과 다름!)
+```
+
+**왜 위반인가?**
+
+- Bird의 `fly()`는 "높이 > 0을 보장"한다 (Postcondition)
+- Penguin의 `fly()`는 "높이 = 0"을 반환한다 (Postcondition 위반)
+- 따라서 Penguin은 Bird의 행동적 서브타입이 아니다
+
+### ✅ 행동적 서브타이핑 준수
+
+```typescript
+// 새(Bird) - 슈퍼타입
+class Bird {
+  fly(): number {
+    return 100; // 기본 높이
+  }
+}
+
+// 독수리(Eagle) - 진정한 서브타입
+class Eagle extends Bird {
+  /**
+   * Bird와 같은 행동!
+   * Postcondition 유지: 높이 > 0
+   */
+  fly(): number {
+    return 200; // Bird보다 높이 날지만, 같은 행동 (날 수 있음)
+  }
+}
+
+// 증명: 행동이 일치한다
+function testBird(bird: Bird) {
+  const height = bird.fly();
+  console.log(`높이: ${height}m`);
+  if (height > 0) {
+    console.log("날 수 있음 ✓");
+  }
+}
+
+testBird(new Bird()); // 높이: 100m, 날 수 있음 ✓
+testBird(new Eagle()); // 높이: 200m, 날 수 있음 ✓
+```
+
+**왜 준수인가?**
+
+- Bird의 `fly()` - "높이 > 0 보장"
+- Eagle의 `fly()` - "높이 > 0 보장" (더 높지만 같은 행동)
+- 따라서 Eagle은 Bird의 행동적 서브타입이다
+
+## 또 다른 예제: 스택 데이터 구조
+
+```typescript
+// 스택(Stack) - 슈퍼타입
+class Stack<T> {
+  private items: T[] = [];
+
+  /**
+   * 행동: LIFO (Last-In-First-Out)
+   * Postcondition: 마지막에 들어온 항목부터 나옴
+   */
+  push(item: T): void {
+    this.items.push(item);
+  }
+
+  pop(): T | undefined {
+    return this.items.pop(); // 마지막 항목 반환
+  }
+
+  size(): number {
+    return this.items.length;
+  }
+}
+
+// ❌ 잘못된 서브타입: Queue
+class BrokenQueue<T> extends Stack<T> {
+  /**
+   * 문제: FIFO 방식 (LIFO와 반대!)
+   * Postcondition 위반: 첫 항목부터 나옴
+   */
+  pop(): T | undefined {
+    // Stack은 마지막 항목을 반환하지만,
+    // 이건 첫 항목을 반환함
+    if (this.size() === 0) return undefined;
+    return this["items"][0]; // 잘못된 행동!
+  }
+}
+
+// ✅ 올바른 서브타입: PriorityStack
+class PriorityStack<T> extends Stack<T> {
+  /**
+   * 행동: 우선순위에 따라 정렬된 LIFO
+   * Postcondition 유지: 여전히 우선순위가 높은 항목부터 나옴 (LIFO 속성 유지)
+   */
+  push(item: T): void {
+    super.push(item); // 기본 행동 유지
+    // 우선순위로 정렬 (행동 강화, 위반 아님)
+  }
+}
+
+// 테스트
+function stackTest(stack: Stack<number>) {
+  stack.push(1);
+  stack.push(2);
+  stack.push(3);
+  console.log(stack.pop()); // 마지막 값(3) 나와야 함
+}
+
+stackTest(new Stack()); // 3 ✓
+stackTest(new BrokenQueue()); // 1 ✗ (Stack 행동 위반!)
+stackTest(new PriorityStack()); // 3 ✓ (행동 유지)
+```
+
+## 행동적 서브타이핑 규칙
+
+**더 약한 Precondition (또는 같음)**
+
+```typescript
+// ✓ OK: Precondition을 약화
+class StrictStack extends Stack {
+  push(item: T): void {
+    // Stack: item != null 요구
+    // 우리: item은 뭐든 OK (더 약함)
+    super.push(item);
+  }
+}
+```
+
+**더 강한 Postcondition (또는 같음)**
+
+```typescript
+// ✓ OK: Postcondition을 강화
+class LoggingStack extends Stack {
+  pop(): T | undefined {
+    const item = super.pop();
+    // Stack: 항목 반환만 보장
+    // 우리: 항목 반환 + 로그 추가 (더 강함)
+    console.log(`꺼냄: ${item}`);
+    return item;
+  }
+}
+```
+
+**같은 Invariant (또는 강화)**
+
+```typescript
+// ✓ OK: 불변식을 유지 또는 강화
+class BoundedStack extends Stack {
+  private maxSize = 100;
+
+  push(item: T): void {
+    // Stack: size <= infinity
+    // 우리: size <= 100 (더 강한 불변식)
+    if (this.size() >= this.maxSize) {
+      throw new Error("Stack overflow");
+    }
+    super.push(item);
+  }
+}
+```
+
+## 역사적 배경
+
+**Barbara Liskov**와 **Jeannette Wing**은 1994년 논문에서 이 개념을 정식화했다:
+
+- 행동적 서브타이핑이 무엇인지 수학적으로 정의
+- [Liskov Substitution Principle](/modules/Liskov-substitution_principle)의 이론적 기반 제공
+- 프로그램의 안정성과 일관성을 보장하는 방법 제시
+
+## 행동적 서브타이핑의 구현: 과거에서 현재까지
+
+### 과거: 명세(명세서/주석)를 통한 구현
+
+```typescript
+class Stack<T> {
+  /**
+   * 행동 명세: LIFO를 보장한다
+   * Postcondition: 마지막에 들어온 항목부터 나온다
+   */
+  push(item: T): void { ... }
+  pop(): T | undefined { ... }
+}
+
+class PriorityStack<T> extends Stack<T> {
+  /**
+   * Stack과 같은 행동을 보장한다
+   * Postcondition: LIFO 순서 유지
+   */
+  push(item: T): void { ... }
+  pop(): T | undefined { ... }
+}
+```
+
+**문제:** 명세를 읽지 않으면 행동을 모른다. 검증이 수동이다.
+
+### 현재: 테스트가 명세가 되면서 자동 검증
+
+최근 트렌드는 **테스트가 행동의 명세이자 검증 수단**이 된다:
+
+### 계약(Contract)을 테스트로 정의
+
+```typescript
+import { describe, it, expect } from "vitest";
+
+describe("Stack - 행동적 서브타이핑 검증", () => {
+  let stack: Stack<number>;
+
+  beforeEach(() => {
+    stack = new Stack();
+  });
+
+  // ==================== 슈퍼타입 계약: LIFO ====================
+  describe("Stack - 계약 (Postcondition)", () => {
+    it("LIFO 순서를 보장한다", () => {
+      stack.push(1);
+      stack.push(2);
+      stack.push(3);
+
+      // Postcondition: 마지막 항목이 먼저 나와야 함
+      expect(stack.pop()).toBe(3);
+      expect(stack.pop()).toBe(2);
+      expect(stack.pop()).toBe(1);
+    });
+  });
+
+  // ==================== 서브타입도 같은 행동을 해야 함 ====================
+  describe("PriorityStack - 서브타입 행동 검증", () => {
+    let priorityStack: PriorityStack<number>;
+
+    beforeEach(() => {
+      priorityStack = new PriorityStack();
+    });
+
+    it("Stack의 자리에 대체되어도 LIFO를 보장한다", () => {
+      // Stack의 계약을 그대로 만족해야 함!
+      priorityStack.push(1);
+      priorityStack.push(2);
+      priorityStack.push(3);
+
+      // 우선순위로 정렬되지만, LIFO 속성은 유지
+      expect(priorityStack.pop()).toBe(3); // 행동 일치 ✓
+    });
+  });
+
+  // ==================== LSP 위반 검증 ====================
+  describe("BrokenQueue - 행동적 서브타이핑 위반 검증", () => {
+    let brokenQueue: BrokenQueue<number>;
+
+    beforeEach(() => {
+      brokenQueue = new BrokenQueue();
+    });
+
+    it("Stack의 자리에 대체되면 작동이 깨진다", () => {
+      brokenQueue.push(1);
+      brokenQueue.push(2);
+      brokenQueue.push(3);
+
+      // 첫 항목이 나옴 (LIFO 위반!) ✗
+      expect(brokenQueue.pop()).not.toBe(3);
+      // 이 테스트는 실패함 → 행동적 서브타이핑 위반!
+    });
+  });
+});
+```
+
+### 테스트가 명세가 된다
+
+이 방식에서:
+
+- **테스트** = "이 타입이 만족해야 할 행동" = **명세**
+- **Precondition** = 입력 조건
+- **Postcondition** = 결과 검증
+- **Invariant** = 변하지 않는 속성
+
+예를 들어:
+
+```typescript
+// "Stack은 LIFO를 보장한다"는 명세가
+// 테스트 코드로 정확히 표현된다
+it("LIFO 순서를 보장한다", () => {
+  // 이 테스트가 명세!
+  stack.push(1);
+  stack.push(2);
+  expect(stack.pop()).toBe(2);
+});
+```
+
+### 서브타입 검증 체크리스트
+
+```typescript
+// 새로운 서브타입을 만들 때 확인사항:
+describe("NewSubtype - 행동적 서브타이핑 검증", () => {
+  // ✓ 슈퍼타입의 모든 테스트를 통과하는가?
+  // ✓ Precondition이 약화되거나 유지되는가?
+  // ✓ Postcondition이 강화되거나 유지되는가?
+  // ✓ Invariant가 유지되거나 강화되는가?
+});
+```
+
+## 핵심 정리
+
+| 개념                  | 설명                      | 검증 방법              |
+| --------------------- | ------------------------- | ---------------------- |
+| **구조적 호환**       | 메서드 이름이 같음        | 컴파일 타임 타입 체크  |
+| **행동적 서브타이핑** | 메서드 이름 + 행동이 같음 | **테스트로 행동 검증** |
+
+서브타입이 되려면:
+
+1. **이름만 같은 게 아니라 행동이 일치**해야 한다
+2. **테스트로 그 행동을 검증**할 수 있다
+3. **슈퍼타입의 모든 테스트를 통과**해야 한다
 
 ### References
 

@@ -1,0 +1,384 @@
+---
+title: Substitutability
+---
+
+# Substitutability (대체 가능성)
+
+**대체 가능성(Substitutability)** 은 **타입 이론의 근본 개념**이다. 한 타입의 값이 다른 타입의 맥락에서 안전하게 사용될 수 있는지를 나타낸다.
+
+예를 들어, `Dog` 타입의 값이 `Animal` 타입이 필요한 곳에서 쓸 수 있다면, `Dog`는 `Animal`과의 관계에서 **대체 가능하다**고 말한다.
+
+대체 가능성은 특정 프로그래밍 패러다임에 국한되지 않고, **모든 타입 시스템의 근본**이다.
+
+## 수학적 기초: 집합론 관점
+
+대체 가능성은 **집합의 포함 관계**로 설명할 수 있다. A 타입의 모든 값이 B 타입의 값으로도 취급될 수 있다면, A는 B의 부분집합이다.
+
+```
+슈퍼타입 = 더 큰 집합 (일반적)
+서브타입 = 더 작은 집합 (구체적)
+
+예: 개 ⊂ 포유류 ⊂ 동물
+```
+
+- 모든 개는 포유류다
+- 모든 포유류는 동물이다
+- 하지만 모든 동물이 개는 아니다
+
+**서브타입의 모든 값은 슈퍼타입의 맥락에서 안전하게 사용 가능하다.**
+
+```typescript
+// 타입 관점에서
+const dog: Dog = new Dog();
+const animal: Animal = dog; // OK - 범위가 커지는 것은 안전
+
+// 반대 방향은 위험
+const animal2: Animal = new Cat();
+const dog2: Dog = animal2; // ERROR - 범위가 작아지는 것은 위험
+```
+
+## 패러다임별 구현
+
+대체 가능성을 구현하는 방식은 패러다임과 언어마다 다르다.
+
+### OOP - Supertype/Subtype
+
+[OOP](/concepts/Object-oriented_programming)에서는 **클래스 상속**으로 대체 가능성을 명시한다.
+
+- **슈퍼타입(Supertype)** - 부모 클래스 (더 일반적인 타입)
+- **서브타입(Subtype)** - 자식 클래스 (더 구체적인 타입)
+- 대체 가능성: Dog의 값은 Animal이 필요한 곳에 사용 가능
+
+#### 예제: 동물 분류 시스템
+
+### 1. 슈퍼타입 정의
+
+```typescript
+// 가장 일반적인 슈퍼타입
+abstract class Animal {
+  protected name: string;
+  protected age: number;
+
+  constructor(name: string, age: number) {
+    this.name = name;
+    this.age = age;
+  }
+
+  // 추상 메서드 - 모든 서브타입이 구현해야 함
+  abstract makeSound(): void;
+  abstract move(): void;
+
+  // 공통 메서드
+  getInfo(): string {
+    return `${this.name} (${this.age} years old)`;
+  }
+}
+```
+
+### 2. 중간 슈퍼타입
+
+```typescript
+// Animal의 서브타입이면서 더 구체적인 슈퍼타입
+abstract class Mammal extends Animal {
+  protected bodyTemperature: number = 37;
+
+  // Mammal에서 공통인 메서드
+  giveBirth(): void {
+    console.log(`${this.name} gave birth to live offspring`);
+  }
+
+  // 추상 메서드는 여전히 서브타입에서 구현해야 함
+  abstract makeSound(): void;
+}
+```
+
+### 3. 구체적인 서브타입들
+
+```typescript
+// Mammal의 서브타입
+class Dog extends Mammal {
+  private breed: string;
+
+  constructor(name: string, age: number, breed: string) {
+    super(name, age);
+    this.breed = breed;
+  }
+
+  makeSound(): void {
+    console.log(`${this.name} barks: Woof! Woof!`);
+  }
+
+  move(): void {
+    console.log(`${this.name} runs on four legs`);
+  }
+
+  getBreedInfo(): string {
+    return `${this.getInfo()} - Breed: ${this.breed}`;
+  }
+}
+
+// Mammal의 또 다른 서브타입
+class Cat extends Mammal {
+  private color: string;
+
+  constructor(name: string, age: number, color: string) {
+    super(name, age);
+    this.color = color;
+  }
+
+  makeSound(): void {
+    console.log(`${this.name} meows: Meow!`);
+  }
+
+  move(): void {
+    console.log(`${this.name} jumps gracefully`);
+  }
+
+  getColorInfo(): string {
+    return `${this.getInfo()} - Color: ${this.color}`;
+  }
+}
+
+// Bird는 다른 계열의 서브타입
+class Bird extends Animal {
+  private canFly: boolean;
+
+  constructor(name: string, age: number, canFly: boolean) {
+    super(name, age);
+    this.canFly = canFly;
+  }
+
+  makeSound(): void {
+    console.log(`${this.name} chirps: Tweet! Tweet!`);
+  }
+
+  move(): void {
+    if (this.canFly) {
+      console.log(`${this.name} flies gracefully`);
+    } else {
+      console.log(`${this.name} walks on two legs`);
+    }
+  }
+}
+```
+
+### 4. 다형성 활용
+
+```typescript
+// 슈퍼타입 참조로 서브타입들 다루기
+const animals: Animal[] = [
+  new Dog("Buddy", 5, "Golden Retriever"),
+  new Cat("Whiskers", 3, "Orange"),
+  new Bird("Tweety", 2, true),
+];
+
+// 슈퍼타입 인터페이스로 모든 서브타입 처리
+animals.forEach((animal) => {
+  console.log(animal.getInfo());
+  animal.makeSound();
+  animal.move();
+  console.log("---");
+});
+
+// 출력:
+// Buddy (5 years old)
+// Buddy barks: Woof! Woof!
+// Buddy runs on four legs
+// ---
+// Whiskers (3 years old)
+// Whiskers meows: Meow!
+// Whiskers jumps gracefully
+// ---
+// Tweety (2 years old)
+// Tweety chirps: Tweet! Tweet!
+// Tweety flies gracefully
+// ---
+```
+
+### 5. 서브타입 확인
+
+```typescript
+const dog = new Dog("Max", 4, "Labrador");
+
+// instanceof로 타입 확인
+if (dog instanceof Dog) {
+  console.log("This is a dog!");
+}
+
+if (dog instanceof Mammal) {
+  console.log("This is a mammal!");
+}
+
+if (dog instanceof Animal) {
+  console.log("This is an animal!");
+}
+
+// 타입 좁히기 (Type Narrowing)
+function handleAnimal(animal: Animal) {
+  if (animal instanceof Dog) {
+    // Dog 특화 메서드 사용 가능
+    console.log((animal as Dog).getBreedInfo());
+  } else if (animal instanceof Cat) {
+    // Cat 특화 메서드 사용 가능
+    console.log((animal as Cat).getColorInfo());
+  }
+}
+```
+
+## Type Hierarchy(타입 계층)
+
+```
+Animal (슈퍼타입)
+  ├── Mammal (중간 슈퍼타입)
+  │   ├── Dog (서브타입)
+  │   └── Cat (서브타입)
+  └── Bird (서브타입)
+```
+
+## 중요한 원칙
+
+### Liskov Substitution Principle
+
+[Liskov Substitution Principle](/modules/Liskov-substitution_principle)에 따르면, 서브타입은 슈퍼타입을 완벽하게 대체할 수 있어야 한다.
+
+```typescript
+// 올바른 예
+function processAnimal(animal: Animal): void {
+  animal.makeSound();
+  animal.move();
+}
+
+const dog = new Dog("Max", 3, "Poodle");
+processAnimal(dog); // Dog는 Animal을 완벽히 대체 가능
+```
+
+### Behavioral Subtyping
+
+서브타입은 단순히 메서드를 상속받는 것이 아니라, [행동](/concepts/Behavioral_subtyping)도 올바르게 정의해야 한다.
+
+```typescript
+// 잘못된 예 - 계약 위반
+class Penguin extends Bird {
+  constructor(name: string, age: number) {
+    super(name, age, false); // 펭귄은 날 수 없음
+  }
+
+  move(): void {
+    // 문제: Bird에서 canFly=false면 "walks"라고 했는데
+    // 실제로는 헤엄친다!
+    console.log(`${this.name} swims`);
+  }
+}
+```
+
+### 함수형 프로그래밍 - Type Constraint
+
+함수형 언어에서는 대체 가능성을 **타입 제약(Type Constraint)** 으로 표현한다.
+
+```haskell
+-- Haskell: 타입 제약
+class Eq a where
+  (==) :: a -> a -> Bool
+
+-- Ord는 Eq의 대체 가능 범위 내에서만 사용 가능
+class (Eq a) => Ord a where
+  (<) :: a -> a -> Bool
+```
+
+`Ord`는 `Eq`의 모든 기능을 필요로 하므로, `Eq`의 맥락에서 `Ord`는 대체 가능하다. 하지만 OOP의 "상속"과는 다르게, "제약(constraint)"의 형태로 표현된다.
+
+### 제네릭 - Type Bound
+
+제네릭 시스템에서는 대체 가능성을 **타입 상한(Type Bound)**으로 표현한다.
+
+```typescript
+// TypeScript/Java: 제네릭 매개변수의 상한
+function sort<T extends Comparable>(items: T[]): T[] {
+  // T는 Comparable의 맥락에서 대체 가능해야 함
+}
+```
+
+`T extends Comparable`은 "`T`는 `Comparable`의 자리에 대체 가능해야 한다"는 의미다.
+
+### 구조적 타입 시스템 - Structural Compatibility
+
+구조적 타입 시스템에서는 **명시적 상속 없이** 구조를 기반으로 대체 가능성을 판단한다.
+
+```typescript
+// TypeScript: 구조가 같으면 대체 가능
+interface Shape {
+  area(): number;
+}
+
+class Circle {
+  area() {
+    return Math.PI * this.r * this.r;
+  }
+}
+
+// Circle은 Shape을 extends하지 않았지만
+// 구조가 일치하므로 대체 가능
+const shape: Shape = new Circle();
+```
+
+`Circle`은 의도적으로 상속하지 않았지만, 필요한 메서드 구조가 같으므로 `Shape`의 맥락에서 대체 가능하다.
+
+### 프로토콜 기반 - Protocol Conformance
+
+프로토콜 기반 언어에서는 대체 가능성을 **프로토콜 준수(Protocol Conformance)** 로 표현한다.
+
+```swift
+// Swift: 프로토콜 준수
+protocol Animal {
+  func makeSound()
+}
+
+struct Dog: Animal {
+  func makeSound() { ... }
+}
+
+// Dog는 Animal 프로토콜을 준수하므로 대체 가능
+```
+
+`Dog`가 `Animal` 프로토콜을 따르므로, `Animal`이 필요한 곳에서 `Dog`를 대체 가능하게 사용할 수 있다.
+
+### 동적 타입 - Duck Typing
+
+동적 타입 언어에서는 대체 가능성을 **런타임에 동작 기반으로** 판단한다. 이를 **덕 타입(Duck Typing)** 이라 부른다.
+
+```python
+# Python: 런타임에 대체 가능성 확인
+class Animal:
+  def make_sound(self):
+    pass
+
+class Dog:  # Animal 상속 안 함
+  def make_sound(self):
+    print("Woof!")
+
+# 컴파일 타임에는 알 수 없지만
+# 런타임에 같은 메서드가 있으면 대체 가능
+```
+
+"오리처럼 보이고 오리처럼 울면, 그것은 오리다(If it looks like a duck and quacks like a duck, then it is a duck)"라는 철학에서 비롯된 개념이다.
+
+## 용어 정리
+
+다양한 패러다임이 대체 가능성을 표현하는 방식:
+
+| 패러다임 | 용어                     | 메커니즘        | 대체 가능성 검증 시점 |
+| -------- | ------------------------ | --------------- | --------------------- |
+| OOP      | Supertype/Subtype        | 명시적 상속     | 컴파일 타임           |
+| 함수형   | Type constraint          | 타입 제약       | 컴파일 타임           |
+| 제네릭   | Type bound               | 매개변수 조건   | 컴파일 타임           |
+| 구조적   | Structural compatibility | 구조 비교       | 컴파일 타임           |
+| 프로토콜 | Protocol conformance     | 인터페이스 구현 | 컴파일 타임           |
+| 동적     | Duck typing              | 메서드 존재     | 런타임                |
+
+**모두 같은 목표를 추구한다: 대체 가능성(Substitutability)을 명확하게 하고 검증하기**
+
+### References
+
+- [Type Theory (wikipedia.org)](https://en.wikipedia.org/wiki/Type_theory)
+- [Subtyping (wikipedia.org)](https://en.wikipedia.org/wiki/Subtyping)
+- [Polymorphism (wikipedia.org)](<https://en.wikipedia.org/wiki/Polymorphism_(computer_science)>)

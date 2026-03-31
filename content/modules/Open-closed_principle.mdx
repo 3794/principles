@@ -86,7 +86,7 @@ class Square extends Shape {
 }
 ```
 
-이 2개의 패턴, Strategy Pattern과 Template Method Pattern은 OCP를 따르는 가장 흔한 수단이다.
+이 2개의 패턴, [Strategy Pattern](/pattern/Strategy_pattern)과 Template Method Pattern은 OCP를 따르는 가장 흔한 수단이다.
 
 이제 모든 shape를 그리는 기능을 추가해 보자.
 
@@ -174,7 +174,7 @@ const orderTable = [Circle, Square];
 
 ---
 
-OCP는 [객체 지향 설계](/concepts/Object-Oriented_Design)의 심장이라 할 수 있다. 이 원칙을 따르면 최상의 효용을 낳는다. 하지만 애플리케이션의 모든 부분에 마구 추상화를 적용하는 것은 좋은 생각이 아니다.
+OCP는 [객체 지향 설계](/concepts/Object-oriented_design)의 심장이라 할 수 있다. 이 원칙을 따르면 최상의 효용을 낳는다. 하지만 애플리케이션의 모든 부분에 마구 추상화를 적용하는 것은 좋은 생각이 아니다.
 그보다는 프로그램에서 자주 변경되는 부분에만 추상화를 적용하기 위한 개발자의 헌신이 필요하다. **어설픈 추상화를 피하는 일은 추상화 자체만큼이나 중요하다.**[^1]
 
 [^1]: 클린 소프트웨어, [Robert C. Martin](/people/Robert_C._Martin), 2002, Open-Closed Principle

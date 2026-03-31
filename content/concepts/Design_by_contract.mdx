@@ -1,0 +1,479 @@
+---
+title: Design by Contract
+---
+
+# Design by Contract (계약에 의한 설계)
+
+**계약에 의한 설계(Design by Contract, DbC)** 는 [Bertrand Meyer](/people/Bertrand_Meyer)가 [Eiffel](/concepts/Eiffel) 언어와 함께 제안한 소프트웨어 설계 방법론이다.
+
+소프트웨어 컴포넌트 간의 **계약(Contract)** 을 명시적으로 정의하여, 각 컴포넌트의 책임과 의무를 명확하게 하는 방식이다.
+
+## Core Concept
+
+계약에는 세 가지 요소가 있다:
+
+- [**Precondition (전제 조건)**](/concepts/Precondition_Postcondition_and_Invariant) - 함수가 호출되기 위해 만족해야 할 조건
+- [**Postcondition (후조건)**](/concepts/Precondition_Postcondition_and_Invariant) - 함수가 정상 실행되었을 때 보장하는 결과
+- [**Invariant (불변식)**](/concepts/Precondition_Postcondition_and_Invariant) - 객체의 생명 주기 동안 항상 참이어야 하는 조건
+
+**계약의 원칙:**
+
+- **호출자의 책임** - Precondition을 만족하는 상태로 함수 호출
+- **구현자의 책임** - Precondition이 만족되면 Postcondition 보장
+- **상호 책임** - 계약을 어기면 계약 위반
+
+## Simple Example
+
+은행 계좌 시스템으로 Design by Contract를 설명한다.
+
+### 1. Precondition, Postcondition, Invariant
+
+```typescript
+// 계좌 클래스
+class BankAccount {
+  private balance: number = 0;
+
+  /**
+   * 입금 함수
+   *
+   * Precondition:
+   *   - amount > 0 (양수만 입금 가능)
+   *   - balance + amount <= MAX_BALANCE (한도 초과 불가)
+   *
+   * Postcondition:
+   *   - balance = old_balance + amount (정확한 금액 입금됨)
+   *
+   * Invariant:
+   *   - 0 <= balance <= MAX_BALANCE (항상 유지)
+   */
+  deposit(amount: number): void {
+    // Precondition 검사
+    if (amount <= 0) {
+      throw new Error("입금액은 양수여야 합니다");
+    }
+    if (this.balance + amount > 1_000_000) {
+      throw new Error("계좌 한도를 초과했습니다");
+    }
+
+    const oldBalance = this.balance;
+    this.balance += amount;
+
+    // Postcondition 검사 (검증 코드)
+    console.assert(
+      this.balance === oldBalance + amount,
+      "입금이 정확하지 않습니다",
+    );
+
+    // Invariant 검사
+    this.assertInvariant();
+  }
+
+  /**
+   * 출금 함수
+   *
+   * Precondition:
+   *   - amount > 0 (양수만 출금 가능)
+   *   - balance >= amount (잔액 충분)
+   *
+   * Postcondition:
+   *   - balance = old_balance - amount (정확한 금액 출금됨)
+   *
+   * Invariant:
+   *   - 0 <= balance <= MAX_BALANCE (항상 유지)
+   */
+  withdraw(amount: number): void {
+    // Precondition 검사
+    if (amount <= 0) {
+      throw new Error("출금액은 양수여야 합니다");
+    }
+    if (this.balance < amount) {
+      throw new Error("잔액이 부족합니다");
+    }
+
+    const oldBalance = this.balance;
+    this.balance -= amount;
+
+    // Postcondition 검사
+    console.assert(
+      this.balance === oldBalance - amount,
+      "출금이 정확하지 않습니다",
+    );
+
+    // Invariant 검사
+    this.assertInvariant();
+  }
+
+  getBalance(): number {
+    return this.balance;
+  }
+
+  // 불변식 검사
+  private assertInvariant(): void {
+    console.assert(
+      this.balance >= 0 && this.balance <= 1_000_000,
+      "계좌 불변식 위반",
+    );
+  }
+}
+```
+
+### 2. 사용 예제
+
+```typescript
+const account = new BankAccount();
+
+// 올바른 사용
+account.deposit(100); // OK
+account.withdraw(50); // OK
+console.log(account.getBalance()); // 50
+
+// 계약 위반 - Precondition 위반
+try {
+  account.deposit(-10); // ERROR: 입금액은 양수여야 합니다
+} catch (e) {
+  console.log(`에러: ${(e as Error).message}`);
+}
+
+// 계약 위반 - Precondition 위반
+try {
+  account.withdraw(100); // ERROR: 잔액이 부족합니다
+} catch (e) {
+  console.log(`에러: ${(e as Error).message}`);
+}
+```
+
+## 계약 위반의 의미
+
+**호출자가 Precondition을 위반한 경우:**
+
+- 호출자의 책임
+- 구현자는 어떤 행동도 보장할 수 없음
+- 예: `withdraw(-10)` 호출
+
+**구현자가 Postcondition을 지키지 못한 경우:**
+
+- 구현자(함수)의 버그
+- 심각한 오류로 간주
+- 예: 입금 후 잔액이 증가하지 않음
+
+**Invariant가 깨진 경우:**
+
+- 객체 설계의 근본적인 문제
+- 객체의 일관성이 깨짐
+
+## DbC의 장점
+
+- **명시적 계약** - 함수의 책임과 의무가 명확함
+- **버그 조기 발견** - 계약 위반을 즉시 감지
+- **문서화** - 코드가 스스로를 설명함
+- **테스트 용이** - 계약 기반으로 테스트 케이스 작성
+- **리팩토링 안전** - 계약을 지키면 호환성 보장
+
+## DbC의 단점
+
+- **성능 오버헤드** - 검사 코드 실행에 비용
+- **복잡성 증가** - 계약 작성과 유지보수 필요
+- **디버깅 어려움** - 계약 위반 발생 지점 파악 필요
+- **언어 지원** - 대부분의 언어가 네이티브로 지원하지 않음
+
+## 실제 구현: 명세와 테스트
+
+### 언어 지원의 한계
+
+대부분의 주요 언어(Java, Python, JavaScript, C++)는 **계약을 명시적으로 지원하지 않는다.**
+
+따라서 실무에서는 두 가지 방식으로 계약을 표현한다:
+
+**1. 문서화/명세에 의존**
+
+```typescript
+// JSDoc 주석으로 계약 명세
+class BankAccount {
+  /**
+   * 입금 처리
+   * 
+   * @param {number} amount 입금액
+   * @throws {Error} amount <= 0 일 때 (Precondition 위반)
+   * @throws {Error} 한도 초과 시 (Precondition 위반)
+   * 
+   * @returns {void}
+   * 
+   * 보장사항:
+   * - balance = old_balance + amount (Postcondition)
+   * - 0 <= balance <= MAX_BALANCE (Invariant)
+   */
+  deposit(amount: number): void {
+    if (amount <= 0) throw new Error("..."); 
+    // 명세에만 명시, 자동 검증 없음
+  }
+}
+```
+
+**문제:** 개발자가 명세를 읽지 않으면 계약을 모른다.
+
+### 최신 방식: 테스트가 명세가 되다
+
+최근 트렌드는 **테스트(Test)가 실제 명세(Specification)가 되는 방식**으로 변화하고 있다.
+
+**테스트에 계약을 명시하기:**
+
+```typescript
+import { describe, it, expect } from "vitest";
+
+describe("BankAccount - DbC를 테스트로 표현", () => {
+  let account: BankAccount;
+
+  beforeEach(() => {
+    account = new BankAccount(0);
+  });
+
+  // ==================== Precondition 테스트 ====================
+  describe("deposit - Precondition 검사", () => {
+    it("음수는 입금할 수 없다", () => {
+      expect(() => account.deposit(-10)).toThrow("양수여야");
+    });
+
+    it("한도 초과는 불가능하다", () => {
+      account = new BankAccount(900000);
+      expect(() => account.deposit(200000)).toThrow("한도");
+    });
+  });
+
+  // ==================== Postcondition 테스트 ====================
+  describe("deposit - Postcondition 보장", () => {
+    it("정확한 금액이 입금된다", () => {
+      const before = account.getBalance();
+      account.deposit(100);
+      expect(account.getBalance()).toBe(before + 100);
+    });
+
+    it("입금 후 잔액이 0 이상이다", () => {
+      account.deposit(50);
+      expect(account.getBalance()).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  // ==================== Invariant 테스트 ====================
+  describe("BankAccount - Invariant 유지", () => {
+    it("어떤 작업 후에도 0 <= balance <= MAX", () => {
+      account.deposit(100);
+      account.withdraw(30);
+      account.deposit(500);
+
+      const balance = account.getBalance();
+      expect(balance).toBeGreaterThanOrEqual(0);
+      expect(balance).toBeLessThanOrEqual(1000000);
+    });
+  });
+
+  // ==================== 서브타입 행동 테스트 ====================
+  describe("PremiumAccount - 행동적 서브타이핑", () => {
+    it("일반 계좌처럼 동작해야 한다 (대체 가능성)", () => {
+      const premium = new PremiumAccount(0);
+
+      // BankAccount의 계약을 모두 만족해야 함
+      expect(() => premium.deposit(-10)).toThrow();
+      premium.deposit(100);
+      expect(premium.getBalance()).toBeGreaterThanOrEqual(0);
+    });
+
+    it("추가 기능: 이자가 붙는다 (강화된 Postcondition)", () => {
+      const premium = new PremiumAccount(0);
+      const before = premium.getBalance();
+      premium.deposit(100);
+      // 기본 보장 + 이자
+      expect(premium.getBalance()).toBeGreaterThan(before + 100);
+    });
+  });
+});
+```
+
+### 테스트 주도 개발(TDD)에서의 DbC
+
+```typescript
+// 1. 먼저 계약(계약)을 테스트로 정의
+describe("Stack - 계약 정의", () => {
+  it("LIFO를 보장해야 한다", () => {
+    const stack = new Stack<number>();
+    stack.push(1);
+    stack.push(2);
+    stack.push(3);
+    
+    // Postcondition: 마지막 항목이 먼저 나와야 함
+    expect(stack.pop()).toBe(3);
+    expect(stack.pop()).toBe(2);
+    expect(stack.pop()).toBe(1);
+  });
+
+  it("빈 스택에서 pop은 undefined를 반환한다", () => {
+    const stack = new Stack<number>();
+    
+    // Postcondition: 빈 상태에서도 안전
+    expect(stack.pop()).toBeUndefined();
+  });
+
+  it("Invariant: 항상 유효한 상태", () => {
+    const stack = new Stack<number>();
+    
+    for (let i = 0; i < 100; i++) {
+      stack.push(i);
+    }
+    
+    // Invariant: 크기는 항상 >= 0
+    expect(stack.size()).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// 2. 계약을 만족하는 구현
+class Stack<T> {
+  private items: T[] = [];
+
+  push(item: T): void {
+    this.items.push(item);
+  }
+
+  pop(): T | undefined {
+    return this.items.pop();
+  }
+
+  size(): number {
+    return this.items.length;
+  }
+}
+```
+
+### DbC와 테스트의 관계
+
+| 관점 | DbC | TDD/테스트 |
+|------|-----|----------|
+| **명세** | 코드 주석 또는 문서 | 테스트 코드 |
+| **검증** | 런타임 assertion | 자동화된 검증 |
+| **유지보수** | 명세와 구현이 분리됨 | 테스트가 명세이자 검증 |
+| **변경 추적** | 문서 업데이트 필요 | 테스트 수정으로 자동 반영 |
+| **신뢰성** | 개발자 책임 | 자동화된 검증 |
+
+### 현대적 접근
+
+**최신 방식: Property-Based Testing (성질 기반 테스트)**
+
+```typescript
+// 계약을 성질(Property)로 표현
+import fc from "fast-check";
+
+describe("Stack - 성질 기반 테스트로 DbC 검증", () => {
+  it("임의의 숫자 시퀀스에 대해 LIFO를 보장한다", () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (numbers) => {
+        const stack = new Stack<number>();
+
+        // Precondition: 유효한 숫자 배열
+        numbers.forEach(n => stack.push(n));
+
+        // Postcondition: LIFO 순서 보장
+        const popped: number[] = [];
+        while (stack.size() > 0) {
+          popped.push(stack.pop()!);
+        }
+
+        // 역순이어야 함
+        expect(popped).toEqual([...numbers].reverse());
+
+        // Invariant: 스택이 비어있음
+        expect(stack.size()).toBe(0);
+      })
+    );
+  });
+});
+```
+
+### 요약
+
+- **과거**: DbC는 Eiffel 같은 특수 언어에서만 가능
+- **현재**: 대부분의 언어가 지원하지 않아 명세 문서에만 기술
+- **최신**: 테스트가 명세가 되면서 **자동화되고 검증 가능한 계약** 구현
+- **미래**: Property-Based Testing으로 계약을 더 강력하게 검증
+
+## Liskov Substitution Principle과의 관계
+
+DbC는 [Liskov Substitution Principle](/modules/Liskov-substitution_principle)의 기반이다.
+
+**LSP 만족 조건:**
+
+- 서브타입의 Precondition ≥ 슈퍼타입의 Precondition (약화 가능)
+- 서브타입의 Postcondition ≤ 슈퍼타입의 Postcondition (강화 불가)
+- 서브타입의 Invariant ≥ 슈퍼타입의 Invariant
+
+```typescript
+// 올바른 서브타입
+class PremiumAccount extends BankAccount {
+  /**
+   * Precondition을 약화: 수수료가 없으므로 amount > 0만 필요
+   * Postcondition을 강화: 이자까지 적용
+   * Invariant를 유지
+   */
+  deposit(amount: number): void {
+    // amount > 0 (기존 조건 유지)
+    super.deposit(amount);
+    // 이자 추가 (강화된 결과)
+    this.applyInterest();
+  }
+
+  private applyInterest(): void {
+    // 이자 계산...
+  }
+}
+```
+
+## 언제 사용할 것인가
+
+- 복잡한 알고리즘이나 비즈니스 로직
+- 여러 개발자가 협업할 때
+- 높은 안정성이 필요한 시스템
+- 레거시 코드 유지보수
+- 성능보다 정확성이 중요한 경우
+
+## 실제 구현
+
+**TypeScript에서의 구현 패턴:**
+
+```typescript
+// Assertion 라이브러리 사용
+import assert from "assert";
+
+class Stack<T> {
+  private items: T[] = [];
+  private readonly MAX_SIZE = 100;
+
+  /**
+   * Precondition: size < MAX_SIZE
+   * Postcondition: size = old_size + 1
+   * Invariant: 0 <= size <= MAX_SIZE
+   */
+  push(item: T): void {
+    // Precondition
+    assert(this.items.length < this.MAX_SIZE, "Stack overflow");
+
+    const oldSize = this.items.length;
+    this.items.push(item);
+
+    // Postcondition
+    assert(this.items.length === oldSize + 1, "Push failed");
+
+    // Invariant
+    this.checkInvariant();
+  }
+
+  private checkInvariant(): void {
+    assert(
+      this.items.length >= 0 && this.items.length <= this.MAX_SIZE,
+      "Invariant violated",
+    );
+  }
+}
+```
+
+### References
+
+- [Design by Contract (wikipedia.org)](https://en.wikipedia.org/wiki/Design_by_contract)
+- [Design by Contract: A Practical Guide (eiffel.com)](https://www.eiffel.org/)
+- [Precondition, Postcondition, Invariant (cs.arizona.edu)](https://www2.cs.arizona.edu/people/kirklab/dbc/index.htm)

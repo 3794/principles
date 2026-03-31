@@ -1,0 +1,171 @@
+---
+title: Strategy Pattern
+---
+
+# Strategy Pattern
+
+**전략 패턴(Strategy Pattern)** 은 알고리즘을 객체로 캡슐화하여, **런타임에 동적으로 선택하고 교환**할 수 있도록 하는 디자인 패턴이다.
+
+알고리즘의 구체적인 구현을 클라이언트로부터 분리하고, 각 알고리즘을 서로 교환 가능하게 만든다.
+
+## Core Concept
+
+- **Strategy** - 알고리즘의 공통 인터페이스
+- **ConcreteStrategy** - 구체적인 알고리즘 구현
+- **Context** - Strategy를 사용하는 클래스
+- **런타임 선택** - 프로그램 실행 중에 알고리즘 선택 가능
+
+## Simple Example
+
+결제 시스템을 Strategy 패턴으로 구현한 예제이다.
+
+### 1. Strategy 인터페이스
+
+```typescript
+// 결제 알고리즘의 공통 인터페이스
+interface PaymentStrategy {
+  pay(amount: number): void;
+}
+```
+
+### 2. ConcreteStrategy 구현
+
+```typescript
+// 신용카드 결제
+class CreditCardPayment implements PaymentStrategy {
+  constructor(private cardNumber: string) {}
+
+  pay(amount: number): void {
+    console.log(`신용카드로 ${amount}원 결제 (카드: ${this.cardNumber})`);
+  }
+}
+
+// PayPal 결제
+class PayPalPayment implements PaymentStrategy {
+  constructor(private email: string) {}
+
+  pay(amount: number): void {
+    console.log(`PayPal로 ${amount}원 결제 (이메일: ${this.email})`);
+  }
+}
+
+// 계좌이체 결제
+class BankTransferPayment implements PaymentStrategy {
+  constructor(private accountNumber: string) {}
+
+  pay(amount: number): void {
+    console.log(`계좌이체로 ${amount}원 결제 (계좌: ${this.accountNumber})`);
+  }
+}
+
+// 암호화폐 결제
+class CryptoPayment implements PaymentStrategy {
+  constructor(private walletAddress: string) {}
+
+  pay(amount: number): void {
+    console.log(`암호화폐로 ${amount}원 결제 (주소: ${this.walletAddress})`);
+  }
+}
+```
+
+### 3. Context 클래스
+
+```typescript
+// 결제를 처리하는 컨텍스트
+class ShoppingCart {
+  private items: { name: string; price: number }[] = [];
+  private paymentStrategy: PaymentStrategy | null = null;
+
+  addItem(name: string, price: number): void {
+    this.items.push({ name, price });
+  }
+
+  setPaymentStrategy(strategy: PaymentStrategy): void {
+    this.paymentStrategy = strategy;
+  }
+
+  getTotal(): number {
+    return this.items.reduce((sum, item) => sum + item.price, 0);
+  }
+
+  checkout(): void {
+    if (!this.paymentStrategy) {
+      console.log("결제 방식을 선택해주세요");
+      return;
+    }
+
+    const total = this.getTotal();
+    console.log(`총액: ${total}원`);
+    this.paymentStrategy.pay(total);
+  }
+}
+```
+
+### 4. 사용 예제
+
+```typescript
+// 쇼핑카트 생성 및 상품 추가
+const cart = new ShoppingCart();
+cart.addItem("노트북", 1500000);
+cart.addItem("마우스", 50000);
+
+// 신용카드로 결제
+cart.setPaymentStrategy(new CreditCardPayment("1234-5678-9012-3456"));
+cart.checkout();
+// 출력:
+// 총액: 1550000원
+// 신용카드로 1550000원 결제 (카드: 1234-5678-9012-3456)
+
+// 같은 카트에서 PayPal로 결제하고 싶음 (쉽게 변경 가능)
+cart.setPaymentStrategy(new PayPalPayment("user@example.com"));
+cart.checkout();
+// 출력:
+// 총액: 1550000원
+// PayPal로 1550000원 결제 (이메일: user@example.com)
+
+// 암호화폐 결제로 변경
+cart.setPaymentStrategy(new CryptoPayment("0x1a2b3c4d5e6f7g8h9i0j"));
+cart.checkout();
+// 출력:
+// 총액: 1550000원
+// 암호화폐로 1550000원 결제 (주소: 0x1a2b3c4d5e6f7g8h9i0j)
+```
+
+## 전략 패턴의 장점
+
+- **알고리즘 교환** - 런타임에 쉽게 알고리즘 변경 가능
+- **조건문 제거** - if-else 또는 switch 줄일 수 있음
+- **새로운 알고리즘 추가 용이** - 기존 코드 수정 없이 새로운 Strategy 추가 (Open/Closed Principle)
+- **테스트 용이** - 각 알고리즘을 독립적으로 테스트 가능
+- **전략의 격리** - 알고리즘의 구체적인 구현이 클라이언트로부터 분리됨
+
+## 전략 패턴의 단점
+
+- **클래스 증가** - 각 알고리즘마다 새로운 클래스 필요
+- **과도한 추상화** - 간단한 경우에는 복잡할 수 있음
+- **런타임 오버헤드** - 전략 선택과 호출의 오버헤드 발생 가능
+
+## 언제 사용할 것인가
+
+- 여러 알고리즘이 있고, **런타임에 선택**해야 할 때
+- 조건문이 복잡하게 얽혀 있을 때
+- 알고리즘이 **자주 변경**될 때
+- 새로운 알고리즘을 **자주 추가**할 때
+- 알고리즘의 **상세 구현을 숨기고** 싶을 때
+
+## 유사 패턴과의 비교
+
+| 패턴            | 목적               | 변경 시점               |
+| --------------- | ------------------ | ----------------------- |
+| Strategy        | 알고리즘 교환      | 런타임                  |
+| State           | 상태 변경          | 런타임 (객체 상태 기반) |
+| Template Method | 알고리즘 구조 고정 | 컴파일 타임 (상속)      |
+
+- **Strategy**: "어떤 알고리즘을 사용할까?"
+- **State**: "객체의 상태가 무엇인가?"
+- **Template Method**: "단계들을 어떻게 구성할까?"
+
+### References
+
+- [Strategy Pattern (wikipedia.org)](https://en.wikipedia.org/wiki/Strategy_pattern)
+- [Strategy Pattern (refactoring.guru)](https://refactoring.guru/design-patterns/strategy)
