@@ -4,7 +4,19 @@ title: Monad
 
 # Monad
 
-### Writer monad
+모나드는 [함수형 프로그래밍](/concepts/Functional_programming)에서 복잡한 계산을 단순하게 표현하기 위한 추상화 패턴이다. 값과 맥락(context)을 함께 관리하면서, 체이닝된 연산들이 자동으로 맥락을 전파하도록 한다.
+
+## Core Concept(핵심 개념)
+
+모나드의 세 가지 필수 요소:
+
+- **unit (return)** - 일반 값을 모나드로 감싸기
+- **bind (flatMap)** - 모나드를 다른 연산에 연결하기
+- **맥락 보존** - 체인의 각 단계에서 맥락이 자동으로 전파됨
+
+이를 통해 여러 연산을 조합하면서도 각 단계의 맥락(에러, 상태, 부작용 등)을 깔끔하게 관리할 수 있다.
+
+## Writer Monad
 
 ```typescript
 type Writer = [number, string[]];
@@ -27,6 +39,34 @@ const pipelog = (writer: Writer, ...transforms: Transform[]) =>
 pipelog(unit(4), squared, halved);
 // Resulting writer object = [8, ['4 was squared.', '16 was halved.']]
 ```
+
+### Writer Monad 설명
+
+Writer 모나드는 **값의 변환과 로그 기록을 함께 관리**하는 패턴이다.
+
+**각 요소의 역할:**
+
+- **Writer 타입** - `[number, string[]]` : 값과 로그 배열의 쌍
+- **unit** - 일반 숫자를 Writer로 감싸면서 빈 로그 배열 생성
+- **bind** - 현재 Writer의 값을 다음 변환에 전달하고, 발생한 로그들을 누적
+- **pipelog** - 여러 변환을 순차 실행하면서 로그를 자동으로 모음
+
+**실행 흐름:**
+
+```
+1. unit(4) → [4, []]
+2. squared 실행 → [16, ['4 was squared.']]
+3. bind를 통해 값 16을 halved에 전달
+4. halved 실행 → [8, ['16 was halved.']]
+5. 로그 누적 → [8, ['4 was squared.', '16 was halved.']]
+```
+
+### 모나드의 장점
+
+- **부작용 추적** - 로그나 상태 변경을 명시적으로 관리
+- **깔끔한 체이닝** - bind를 통해 복잡한 로직도 단순하게 연결
+- **맥락 보존** - 각 단계에서 자동으로 로그가 누적됨
+- **에러 처리** - Maybe나 Either 모나드를 사용하면 에러를 우아하게 처리
 
 ### References
 
