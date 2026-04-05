@@ -1,0 +1,141 @@
+---
+title: Microfrontends
+---
+
+# Microfrontends
+
+Microfrontends는 마이크로서비스 아키텍처의 개념을 프론트엔드에 적용한 패턴이다. 하나의 대규모 프론트엔드 애플리케이션을 작고 독립적인 여러 개의 마이크로 애플리케이션으로 분할하고, 이들을 빌드시나 런타임에 조합하여 완전한 웹 애플리케이션을 만든다.
+
+## Core Concepts(핵심 개념)
+
+- **Isolation** - 각 마이크로 애플리케이션은 독립적인 번들, 의존성, 상태 관리
+- **Container/Shell** - 마이크로 애플리케이션들을 조합하는 상위 컨테이너 애플리케이션
+- **Communication** - 마이크로 애플리케이션들 간의 느슨한 결합 통신
+- **독립적 배포** - 각 팀이 자신의 스케줄에 맞춰 배포 가능
+- **기술 자유도** - 팀별로 최적의 기술스택 선택 가능
+- **확장성** - 기능별로 팀과 개발을 분리하여 조직 확장 용이
+- **유지보수성** - 각 마이크로앱의 코드베이스가 작아서 관리 용이
+
+---
+
+**Integration Approaches(통합 방식)**
+
+- Build-time Integration
+- Runtime Integration
+  - **Independent Delivery** - 각 마이크로 애플리케이션은 독립적으로 개발, 테스트, 배포 가능. 빌드타임 통합시에는 서로 영향받는 경우가 생긴다.
+  - **Technology Agnostic** - 서로 다른 팀이 다양한 기술스택(React, Vue, Angular 등) 사용 가능.
+  - **점진적 업그레이드** - 각 마이크로앱을 독립적으로 업데이트 가능.
+  - **장애 격리** - 한 마이크로앱의 오류가 전체 시스템에 영향 최소화
+
+## 1. Build-time Integration
+
+NPM 패키지를 이용해서 모듈을 빌드 시점에 통합하는 방식
+
+```typescript
+// package.json
+{
+  "dependencies": {
+    "@app/navbar": "^1.0.0",
+    "@app/sidebar": "^1.0.0",
+    "@app/content": "^1.0.0"
+  }
+}
+
+// App.tsx
+import Navbar from '@app/navbar';
+import Sidebar from '@app/sidebar';
+import Content from '@app/content';
+
+export default function App() {
+  return (
+    <div>
+      <Navbar />
+      <div style={{ display: 'flex' }}>
+        <Sidebar />
+        <Content />
+      </div>
+    </div>
+  );
+}
+```
+
+패키지를 사용하여 모듈화의 이점을 사용하고 싶지만 실제로 분리된 레포로 인한 비용이 증가되는것을 피하기 위해 모노레포를 사용할 수 있다. 터포레포를 이용해서 모노레포를 구성할 수 있다.
+
+## 2. Runtime Integration
+
+### 2-1. Module Federation
+
+모듈 페더레이션을 사용한 런타임 통합
+
+- 웹팩에서 시작한 개념으로 vite 생태계에서도 플러그인을 사용해서 가능하다.
+
+```
+Host App ──런타임 fetch──▶ Remote A (remoteEntry.js)
+                    ──────▶ Remote B (remoteEntry.js)
+```
+
+### 2-2. iframes
+
+아이프레임을 사용한 완전한 격리
+
+- 마이크로프론트앤드의 가장 초기 형태. 포털이나 결제 등에 쓰인다.
+
+```
+Shell
+└── <iframe src="https://pay.internal/widget" />
+```
+
+### 2-3. Single-SPA
+
+각 앱에 mount / unmount 라이프사이클을 붙여서 Shell이 라우팅에 따라 앱을 올리고 내림.
+
+```
+Shell (single-spa root)
+  ├── /dashboard → React App
+  ├── /orders    → Vue App
+  └── /legacy    → Angular App
+```
+
+### 2-4. Web Components
+
+각 MFE를 Custom Element로 노출. 프레임워크 무관하게 쓸 수 있음.
+
+```
+<!-- Shell에서 그냥 태그처럼 쓰기 -->
+<checkout-widget cart-id="123"></checkout-widget>
+<user-profile user-id="456"></user-profile>
+```
+
+## Architecture Example
+
+```
+┌─────────────────────────────────────────────────┐
+│           Container Application                 │
+│  (orchestrates all micro frontend apps)         │
+└─────────────────────────────────────────────────┘
+  ├─────────────────┼──────────────────┼──────────────────┐
+  │                 │                  │                  │
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐
+│   Navbar    │  │  Sidebar    │  │   Content   │  │  Settings    │
+│   Micro App │  │  Micro App  │  │  Micro App  │  │  Micro App   │
+└─────────────┘  └─────────────┘  └─────────────┘  └──────────────┘
+  React 18.0      React 17.0       Vue 3.0          Angular 14.0
+
+```
+
+## 방식 비교 요약
+
+| 방식              | 통합 시점 | 격리 수준 | 독립 배포 | 복잡도 |
+| ----------------- | --------- | --------- | --------- | ------ |
+| NPM 패키지        | 빌드타임  | N/A       | ❌        | 낮음   |
+| Module Federation | 런타임    | 중간      | ✅        | 높음   |
+| Single-SPA        | 런타임    | 낮음      | ✅        | 높음   |
+| iframes           | 런타임    | 최고      | ✅        | 낮음   |
+| Web Components    | 런타임    | 높음      | ✅        | 중간   |
+
+## References
+
+- [Micro Frontends(martinfowler.com)](https://martinfowler.com/articles/micro-frontends.html)
+- [Webpack Module Federation](https://webpack.js.org/concepts/module-federation/)
+- [Microfrontend (wikipedia.org)](https://en.wikipedia.org/wiki/Micro_frontend)
+- [Understanding Module Federation: A Deep Dive](https://scriptedalchemy.medium.com/understanding-webpack-module-federation-a-deep-dive-efe5c55bf366)

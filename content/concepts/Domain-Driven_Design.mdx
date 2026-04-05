@@ -1,0 +1,370 @@
+---
+title: Domain-Driven Design
+---
+
+# Domain-Driven Design (DDD)
+
+Domain-Driven Design은 [Eric Evans](https://www.domainlanguage.com/)가 2003년에 제시한 소프트웨어 설계 철학이다. DDD는 복잡한 비즈니스 도메인을 이해하고, 그 도메인의 개념을 코드에 직접 반영하여 유지보수와 확장이 용이한 시스템을 만드는 것을 목표로 한다.
+
+## Core Concepts(핵심 개념)
+
+### Domain (도메인)
+
+- 소프트웨어가 해결하려는 비즈니스 영역
+- 예: 전자상거래, 금융, 의료, 교육 등
+
+### Subdomain (서브도메인)
+
+- 도메인을 더 작고 관리 가능한 부분으로 나눈 것
+- **Core Subdomain**: 핵심 경쟁력을 제공하는 부분
+- **Supporting Subdomain**: 핵심을 지원하는 부분
+- **Generic Subdomain**: 특화되지 않은 일반적인 부분
+
+### Bounded Context (경계 컨텍스트)
+
+- 도메인 모델이 유효한 명확한 경계
+- 같은 개념도 다른 컨텍스트에서는 다르게 표현될 수 있음
+- 예: "주문"은 판매 컨텍스트와 배송 컨텍스트에서 다르게 정의됨
+
+### Ubiquitous Language (공통 언어)
+
+- 개발자, 기획자, 도메인 전문가가 사용하는 동일한 용어
+- 코드에도 이 언어가 반영되어야 함
+- 의사소통의 혼란을 줄임
+
+### Aggregate (애그리게이트)
+
+- 관련된 엔티티와 값 객체의 묶음
+- 일관성 경계를 정의
+- Aggregate Root를 통해서만 접근됨
+
+### Entity (엔티티)
+
+- 고유한 식별자(ID)를 가진 객체
+- 생명주기를 가짐
+- 예: Order, Customer, Product
+
+### Value Object (값 객체)
+
+- 식별자가 없고 불변성을 가지는 객체
+- 속성의 동등성으로 비교됨
+- 예: Money, Address, Color
+
+### Repository (저장소)
+
+- 애그리게이트를 저장하고 검색하는 인터페이스 제공
+- 영속성 계층을 추상화
+- 데이터 접근 로직을 캡슐화
+
+### Domain Service (도메인 서비스)
+
+- 어떤 엔티티나 값 객체에도 속하지 않는 비즈니스 로직
+- Stateless하고 도메인 개념을 표현
+
+### Domain Event (도메인 이벤트)
+
+- 도메인에서 중요한 일이 발생했을 때 발행되는 이벤트
+- 다른 바운디드 컨텍스트 간의 통신 메커니즘
+
+## Key Benefits(주요 이점)
+
+- 복잡한 도메인을 이해하기 쉬운 모델로 표현
+- 비즈니스 요구사항과 코드의 일치도 향상
+- 팀 간 의사소통 개선
+- 변경에 대한 영향도를 제한 (경계 컨텍스트)
+- 테스트 용이성 증대
+- 장기적 유지보수성 향상
+
+## Simple Example(간단한 예제)
+
+온라인 서점 도메인을 DDD로 모델링한 예제이다.
+
+### 1. Domain Model (도메인 모델)
+
+```typescript
+// src/domain/book/Book.ts (Aggregate Root)
+import { Money } from "./Money"; // Value Object
+
+export class Book {
+  constructor(
+    public readonly id: string,
+    public readonly isbn: string,
+    public readonly title: string,
+    public readonly author: string,
+    public readonly price: Money,
+    private stock: number,
+  ) {}
+
+  isAvailable(): boolean {
+    return this.stock > 0;
+  }
+
+  decreaseStock(quantity: number): void {
+    if (quantity <= 0) {
+      throw new Error("Quantity must be positive");
+    }
+    if (this.stock < quantity) {
+      throw new Error("Insufficient stock");
+    }
+    this.stock -= quantity;
+  }
+
+  getStock(): number {
+    return this.stock;
+  }
+}
+
+// src/domain/book/Money.ts (Value Object)
+export class Money {
+  constructor(
+    public readonly amount: number,
+    public readonly currency: string,
+  ) {
+    if (amount < 0) {
+      throw new Error("Amount cannot be negative");
+    }
+  }
+
+  add(other: Money): Money {
+    if (this.currency !== other.currency) {
+      throw new Error("Cannot add different currencies");
+    }
+    return new Money(this.amount + other.amount, this.currency);
+  }
+
+  equals(other: Money): boolean {
+    return this.amount === other.amount && this.currency === other.currency;
+  }
+}
+
+// src/domain/order/Order.ts (Aggregate Root)
+import { Money } from "../book/Money";
+import { Book } from "../book/Book";
+
+export class OrderItem {
+  constructor(
+    public readonly bookId: string,
+    public readonly title: string,
+    public readonly quantity: number,
+    public readonly price: Money,
+  ) {}
+
+  getTotalPrice(): Money {
+    return new Money(this.price.amount * this.quantity, this.price.currency);
+  }
+}
+
+export enum OrderStatus {
+  PENDING = "PENDING",
+  CONFIRMED = "CONFIRMED",
+  SHIPPED = "SHIPPED",
+  DELIVERED = "DELIVERED",
+  CANCELLED = "CANCELLED",
+}
+
+export class Order {
+  private items: OrderItem[] = [];
+  private status: OrderStatus = OrderStatus.PENDING;
+  private createdAt: Date;
+
+  constructor(
+    public readonly orderId: string,
+    public readonly customerId: string,
+  ) {
+    this.createdAt = new Date();
+  }
+
+  addItem(item: OrderItem): void {
+    if (this.status !== OrderStatus.PENDING) {
+      throw new Error("Cannot add items to a non-pending order");
+    }
+    this.items.push(item);
+  }
+
+  getTotalPrice(): Money {
+    return this.items.reduce(
+      (total, item) => total.add(item.getTotalPrice()),
+      new Money(0, "USD"),
+    );
+  }
+
+  confirm(): void {
+    if (this.items.length === 0) {
+      throw new Error("Cannot confirm an empty order");
+    }
+    this.status = OrderStatus.CONFIRMED;
+  }
+
+  ship(): void {
+    if (this.status !== OrderStatus.CONFIRMED) {
+      throw new Error("Can only ship confirmed orders");
+    }
+    this.status = OrderStatus.SHIPPED;
+  }
+
+  getStatus(): OrderStatus {
+    return this.status;
+  }
+
+  getItems(): OrderItem[] {
+    return [...this.items];
+  }
+}
+```
+
+### 2. Repository (저장소)
+
+```typescript
+// src/domain/book/BookRepository.ts (Abstraction)
+import { Book } from "./Book";
+
+export interface BookRepository {
+  findById(id: string): Promise<Book | null>;
+  findByIsbn(isbn: string): Promise<Book | null>;
+  save(book: Book): Promise<void>;
+}
+
+// src/domain/order/OrderRepository.ts (Abstraction)
+import { Order } from "./Order";
+
+export interface OrderRepository {
+  findById(orderId: string): Promise<Order | null>;
+  save(order: Order): Promise<void>;
+  findByCustomerId(customerId: string): Promise<Order[]>;
+}
+```
+
+### 3. Domain Service (도메인 서비스)
+
+```typescript
+// src/domain/order/OrderService.ts
+import { Order, OrderItem, OrderStatus } from "./Order";
+import { Book } from "../book/Book";
+import { BookRepository } from "../book/BookRepository";
+import { OrderRepository } from "./OrderRepository";
+
+export class OrderService {
+  constructor(
+    private bookRepository: BookRepository,
+    private orderRepository: OrderRepository,
+  ) {}
+
+  async createOrder(customerId: string, bookIds: string[]): Promise<Order> {
+    const order = new Order(Math.random().toString(), customerId);
+
+    for (const bookId of bookIds) {
+      const book = await this.bookRepository.findById(bookId);
+      if (!book) {
+        throw new Error(`Book not found: ${bookId}`);
+      }
+
+      if (!book.isAvailable()) {
+        throw new Error(`Book out of stock: ${book.title}`);
+      }
+
+      const item = new OrderItem(book.id, book.title, 1, book.price);
+      order.addItem(item);
+      book.decreaseStock(1);
+      await this.bookRepository.save(book);
+    }
+
+    order.confirm();
+    await this.orderRepository.save(order);
+
+    // 도메인 이벤트 발행 (추후 구현)
+    // this.eventBus.publish(new OrderCreatedEvent(order));
+
+    return order;
+  }
+}
+```
+
+### 4. Application Service (응용 서비스)
+
+```typescript
+// src/application/CreateOrderUseCase.ts
+import { OrderService } from "../domain/order/OrderService";
+import { OrderRepository } from "../domain/order/OrderRepository";
+import { BookRepository } from "../domain/book/BookRepository";
+
+export class CreateOrderUseCase {
+  private orderService: OrderService;
+
+  constructor(
+    private bookRepository: BookRepository,
+    private orderRepository: OrderRepository,
+  ) {
+    this.orderService = new OrderService(bookRepository, orderRepository);
+  }
+
+  async execute(
+    customerId: string,
+    bookIds: string[],
+  ): Promise<{
+    orderId: string;
+    totalPrice: number;
+    status: string;
+  }> {
+    const order = await this.orderService.createOrder(customerId, bookIds);
+
+    return {
+      orderId: order.orderId,
+      totalPrice: order.getTotalPrice().amount,
+      status: order.getStatus(),
+    };
+  }
+}
+```
+
+### 5. Bounded Context Integration
+
+```typescript
+// src/main.ts
+import { OrderRepository } from "./domain/order/OrderRepository";
+import { BookRepository } from "./domain/book/BookRepository";
+import { CreateOrderUseCase } from "./application/CreateOrderUseCase";
+
+// 저장소 구현 (Infrastructure layer)
+class InMemoryBookRepository implements BookRepository {
+  // 구현...
+}
+
+class InMemoryOrderRepository implements OrderRepository {
+  // 구현...
+}
+
+// 의존성 주입
+const bookRepository = new InMemoryBookRepository();
+const orderRepository = new InMemoryOrderRepository();
+const createOrderUseCase = new CreateOrderUseCase(
+  bookRepository,
+  orderRepository,
+);
+
+// 사용
+async function main() {
+  const result = await createOrderUseCase.execute("customer-1", [
+    "book-1",
+    "book-2",
+  ]);
+  console.log(result);
+}
+```
+
+## Key Points(핵심 포인트)
+
+- **도메인 중심**: 기술이 아닌 비즈니스 로직이 중심
+- **공통 언어**: 개발팀과 도메인 전문가가 같은 언어 사용
+- **경계 컨텍스트**: 큰 시스템을 관리 가능한 부분으로 분리
+- **Aggregate**: 데이터 일관성을 위한 명확한 경계 정의
+- **Repository**: 영속성 로직의 추상화
+- **도메인 이벤트**: 컨텍스트 간의 느슨한 결합
+
+## DDD와 마이크로서비스
+
+DDD의 Bounded Context 개념은 마이크로서비스 아키텍처의 기초가 된다. 각 Bounded Context는 독립적인 마이크로서비스로 구현될 수 있으며, 서비스 간의 통신은 도메인 이벤트나 API를 통해 이루어진다.
+
+## References
+
+- [Domain-Driven Design(domaindrivendesign.org)](https://www.domainlanguage.com/)
+- [Domain-Driven Design(wikipedia.org)](https://en.wikipedia.org/wiki/Domain-driven_design)
