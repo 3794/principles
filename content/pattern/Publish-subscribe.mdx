@@ -1,0 +1,340 @@
+---
+title: "Publish-Subscribe"
+---
+
+# Publish-Subscribe Pattern
+
+Publish-Subscribe(Pub/Sub)는 발행자(Publisher)와 구독자(Subscriber) 간에 메시지 브로커를 통해 느슨한 결합을 유지하면서 비동기 통신을 구현하는 메시징 패턴 및 [아키텍처](/pattern/Architecture)이다. 발행자는 구독자의 존재를 알 필요 없이 특정 토픽(주제)에 메시지를 발행하고, 그 토픽을 구독하는 모든 구독자가 메시지를 수신한다.
+
+## Core Concepts(핵심 개념)
+
+- **Publisher** - 메시지를 생성하고 발행하는 주체
+- **Subscriber** - 특정 토픽의 메시지를 수신하기 위해 구독하는 주체
+- **Message Broker** - Publisher와 Subscriber 사이에서 메시지를 라우팅하는 중간 매개체
+- **Topic/Channel** - 메시지를 분류하는 카테고리
+- **Decoupling** - Publisher와 Subscriber가 서로를 알 필요가 없음
+- **Asynchronous** - 비동기 메시지 전송
+
+## Key Benefits(주요 이점)
+
+- **느슨한 결합** - Publisher와 Subscriber가 독립적으로 동작
+- **확장성** - 새로운 Subscriber 추가 시 Publisher 수정 불필요
+- **비동기 처리** - 비동기 메시징으로 시스템 응답성 향상
+- **다양한 구독자** - 하나의 메시지를 여러 구독자가 처리 가능
+- **시스템 분리** - 마이크로서비스 간 통신에 최적
+- **신뢰성** - 메시지 브로커가 메시지 전달 보장
+
+## Pattern Architecture(패턴 아키텍처)
+
+```
+┌─────────────┐         ┌──────────────────┐         ┌──────────────┐
+│ Publisher A │         │                  │         │ Subscriber 1 │
+│             │────────▶│                  │────────▶│ (Email)      │
+└─────────────┘         │                  │         └──────────────┘
+                        │  Message Broker  │
+┌─────────────┐         │  (Topic A)       │         ┌──────────────┐
+│ Publisher B │────────▶│                  │────────▶│ Subscriber 2 │
+│             │         │                  │         │ (SMS)        │
+└─────────────┘         │                  │         └──────────────┘
+                        │                  │
+                        │                  │         ┌──────────────┐
+                        │                  │────────▶│ Subscriber 3 │
+                        │                  │         │ (Analytics)  │
+                        └──────────────────┘         └──────────────┘
+```
+
+## Implementation Example(구현 예제)
+
+### 1. Message Broker
+
+```typescript
+// src/broker/MessageBroker.ts
+export interface Message {
+  id: string;
+  topic: string;
+  data: any;
+  timestamp: Date;
+}
+
+export interface SubscriberCallback {
+  (message: Message): void | Promise<void>;
+}
+
+export class MessageBroker {
+  private subscribers: Map<string, Set<SubscriberCallback>> = new Map();
+  private messageHistory: Message[] = [];
+
+  // 구독자 등록
+  subscribe(topic: string, callback: SubscriberCallback): () => void {
+    if (!this.subscribers.has(topic)) {
+      this.subscribers.set(topic, new Set());
+    }
+
+    this.subscribers.get(topic)!.add(callback);
+
+    // 구독 해제 함수 반환
+    return () => {
+      this.subscribers.get(topic)!.delete(callback);
+    };
+  }
+
+  // 메시지 발행
+  async publish(topic: string, data: any): Promise<void> {
+    const message: Message = {
+      id: Math.random().toString(36).substr(2, 9),
+      topic,
+      data,
+      timestamp: new Date(),
+    };
+
+    // 메시지 히스토리 저장
+    this.messageHistory.push(message);
+
+    // 해당 토픽의 모든 구독자에게 메시지 전달
+    const callbacks = this.subscribers.get(topic) || new Set();
+
+    await Promise.all(
+      Array.from(callbacks).map((callback) =>
+        Promise.resolve(callback(message)).catch((error) => {
+          console.error(`Subscriber error for topic ${topic}:`, error);
+        }),
+      ),
+    );
+  }
+
+  // 메시지 히스토리 조회
+  getMessageHistory(topic?: string): Message[] {
+    if (!topic) {
+      return [...this.messageHistory];
+    }
+    return this.messageHistory.filter((msg) => msg.topic === topic);
+  }
+}
+
+export const globalBroker = new MessageBroker();
+```
+
+### 2. Publishers
+
+```typescript
+// src/publishers/UserPublisher.ts
+import { globalBroker } from "../broker/MessageBroker";
+
+export class UserPublisher {
+  async publishUserRegistered(userId: string, email: string): Promise<void> {
+    await globalBroker.publish("user.registered", {
+      userId,
+      email,
+      timestamp: new Date(),
+    });
+  }
+
+  async publishUserDeleted(userId: string): Promise<void> {
+    await globalBroker.publish("user.deleted", {
+      userId,
+      timestamp: new Date(),
+    });
+  }
+}
+
+// src/publishers/OrderPublisher.ts
+import { globalBroker } from "../broker/MessageBroker";
+
+export class OrderPublisher {
+  async publishOrderCreated(
+    orderId: string,
+    userId: string,
+    amount: number,
+  ): Promise<void> {
+    await globalBroker.publish("order.created", {
+      orderId,
+      userId,
+      amount,
+      timestamp: new Date(),
+    });
+  }
+
+  async publishOrderShipped(orderId: string): Promise<void> {
+    await globalBroker.publish("order.shipped", {
+      orderId,
+      timestamp: new Date(),
+    });
+  }
+}
+```
+
+### 3. Subscribers
+
+```typescript
+// src/subscribers/EmailSubscriber.ts
+import { Message } from "../broker/MessageBroker";
+
+export class EmailSubscriber {
+  async sendWelcomeEmail(message: Message): Promise<void> {
+    console.log(
+      `📧 환영 이메일 발송: ${message.data.email} (사용자: ${message.data.userId})`,
+    );
+    // 실제 이메일 발송 로직
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  async sendOrderConfirmation(message: Message): Promise<void> {
+    console.log(
+      `📧 주문 확인 이메일: ${message.data.orderId} - ${message.data.amount}원`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  async sendShippingNotification(message: Message): Promise<void> {
+    console.log(`📧 배송 알림: ${message.data.orderId}`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
+// src/subscribers/SMSSubscriber.ts
+import { Message } from "../broker/MessageBroker";
+
+export class SMSSubscriber {
+  async sendOrderNotification(message: Message): Promise<void> {
+    console.log(`📱 주문 문자: 주문 ${message.data.orderId}가 생성되었습니다.`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  async sendShippingNotification(message: Message): Promise<void> {
+    console.log(`📱 배송 문자: 주문 ${message.data.orderId}이 배송 중입니다.`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
+// src/subscribers/AnalyticsSubscriber.ts
+import { Message } from "../broker/MessageBroker";
+
+export class AnalyticsSubscriber {
+  async trackEvent(message: Message): Promise<void> {
+    console.log(
+      `📊 분석 기록: [${message.topic}] ${JSON.stringify(message.data)}`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+// src/subscribers/InventorySubscriber.ts
+import { Message } from "../broker/MessageBroker";
+
+export class InventorySubscriber {
+  async updateInventory(message: Message): Promise<void> {
+    console.log(
+      `📦 재고 업데이트: 주문 ${message.data.orderId}으로 인한 재고 감소`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+```
+
+### 4. 사용 예제
+
+```typescript
+// src/main.ts
+import { globalBroker } from "./broker/MessageBroker";
+import { UserPublisher } from "./publishers/UserPublisher";
+import { OrderPublisher } from "./publishers/OrderPublisher";
+import { EmailSubscriber } from "./subscribers/EmailSubscriber";
+import { SMSSubscriber } from "./subscribers/SMSSubscriber";
+import { AnalyticsSubscriber } from "./subscribers/AnalyticsSubscriber";
+import { InventorySubscriber } from "./subscribers/InventorySubscriber";
+
+async function main() {
+  // Publisher 생성
+  const userPublisher = new UserPublisher();
+  const orderPublisher = new OrderPublisher();
+
+  // Subscriber 생성
+  const emailSubscriber = new EmailSubscriber();
+  const smsSubscriber = new SMSSubscriber();
+  const analyticsSubscriber = new AnalyticsSubscriber();
+  const inventorySubscriber = new InventorySubscriber();
+
+  // 구독 등록
+  globalBroker.subscribe("user.registered", (msg) =>
+    emailSubscriber.sendWelcomeEmail(msg),
+  );
+  globalBroker.subscribe("user.registered", (msg) =>
+    analyticsSubscriber.trackEvent(msg),
+  );
+
+  globalBroker.subscribe("order.created", (msg) =>
+    emailSubscriber.sendOrderConfirmation(msg),
+  );
+  globalBroker.subscribe("order.created", (msg) =>
+    smsSubscriber.sendOrderNotification(msg),
+  );
+  globalBroker.subscribe("order.created", (msg) =>
+    analyticsSubscriber.trackEvent(msg),
+  );
+  globalBroker.subscribe("order.created", (msg) =>
+    inventorySubscriber.updateInventory(msg),
+  );
+
+  globalBroker.subscribe("order.shipped", (msg) =>
+    emailSubscriber.sendShippingNotification(msg),
+  );
+  globalBroker.subscribe("order.shipped", (msg) =>
+    smsSubscriber.sendShippingNotification(msg),
+  );
+  globalBroker.subscribe("order.shipped", (msg) =>
+    analyticsSubscriber.trackEvent(msg),
+  );
+
+  // 이벤트 발행
+  console.log("=== 사용자 등록 이벤트 ===");
+  await userPublisher.publishUserRegistered("user-123", "john@example.com");
+
+  console.log("\n=== 주문 생성 이벤트 ===");
+  await orderPublisher.publishOrderCreated("order-456", "user-123", 50000);
+
+  console.log("\n=== 주문 배송 이벤트 ===");
+  await orderPublisher.publishOrderShipped("order-456");
+
+  console.log("\n=== 메시지 히스토리 ===");
+  const history = globalBroker.getMessageHistory();
+  console.log(`총 ${history.length}개의 메시지 발행됨`);
+}
+
+main().catch(console.error);
+```
+
+## Pub/Sub vs Observer Pattern(차이점)
+
+초기에는 두 용어를 혼용해서 사용했음. 최근에는 Pub/Sub이 브로커를 통한 통신을 강조하는 방향으로 발전되어 구별됨
+
+| 특성            | Pub/Sub            | Observer         |
+| --------------- | ------------------ | ---------------- |
+| **중간 매개체** | 메시지 브로커 필요 | 직접 연결        |
+| **결합도**      | 매우 느슨함        | 약간의 결합      |
+| **확장성**      | 높음               | 중간             |
+| **비동기**      | 기본 비동기        | 동기/비동기 선택 |
+| **메시지 저장** | 가능               | 불가능           |
+| **시스템 분리** | 분리된 시스템 권장 | 같은 시스템 내   |
+
+## Key Points
+
+- **느슨한 결합** - Publisher와 Subscriber가 독립적
+- **확장성** - 새로운 구독자 추가 시 기존 코드 수정 불필요
+- **비동기 처리** - 메시지 기반 비동기 통신
+- **신뢰성** - 메시지 브로커가 전달 보장
+- **복잡도** - 시스템 복잡도 증가, 운영 관리 필요
+- **메시지 순서** - 메시지 순서 보장 중요 (토픽별로 순서 유지)
+
+## 도전과제 및 고려사항
+
+- **메시지 순서 보장** - 여러 구독자 사이의 실행 순서 문제
+- **중복 처리** - 같은 메시지 중복 처리 시나리오 대응
+- **에러 처리** - 구독자 오류 시 메시지 재전송 메커니즘
+- **메시지 크기** - 큰 메시지 처리 시 성능 저하
+- **메모리 관리** - 메시지 보존 기간 및 저장소 관리
+- **모니터링** - 메시지 흐름 추적 및 디버깅
+
+## References
+
+- [Publish-Subscribe Pattern (en.Wikipedia.org)](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern)
+- [Message Broker(en.Wikipedia.org)](https://en.wikipedia.org/wiki/Message_broker)
