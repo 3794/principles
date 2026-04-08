@@ -1,0 +1,106 @@
+---
+title: Persistent Data Structure
+---
+
+# Persistent Data Structure
+
+> Persistent Data Structure는 수정될 때 이전 버전을 항상 유지한다. 새로운 버전을 생성할 때, 변경되지 않은 부분은 공유되어 메모리 효율성을 극대화한다.
+
+Persistent data structure(지속적 자료구조, 또는 불변 자료구조)는 수정 연산 후에도 이전 버전을 유지하는 자료구조이다. 이는 함수형 프로그래밍과 concurrent 프로그래밍에서 매우 중요한 개념이다.
+
+## 핵심 특성
+
+### 1. 불변성(Immutability)
+
+자료구조를 수정할 때 원본 데이터를 변경하지 않고, 새로운 버전을 만든다.
+
+```javascript
+// 일반적인 배열 (mutable)
+const arr1 = [1, 2, 3];
+const arr2 = arr1;
+arr2[0] = 99; // arr1도 변경됨
+console.log(arr1); // [99, 2, 3]
+
+// Persistent 배열 (immutable)
+const list1 = List([1, 2, 3]);
+const list2 = list1.set(0, 99);
+console.log(list1.get(0)); // 1 (변경 안됨)
+console.log(list2.get(0)); // 99
+```
+
+### 2. 구조 공유(Structural Sharing)
+
+메모리 효율성을 위해 변경되지 않은 부분은 여러 버전 사이에서 공유된다.
+
+```
+Original:    [1, 2, 3, 4, 5]
+              ↓  ↓  ↓
+New version: [1, 2, 99, 4, 5]
+             (노드 공유, 변경부만 새로 생성)
+```
+
+### 3. 모든 버전 접근 가능
+
+모든 이전 버전에 접근할 수 있으며, 버전 간 차이를 추적할 수 있다.
+
+## 장점
+
+1. **스레드 안전성(Thread Safety)**: 여러 스레드에서 동시에 접근해도 안전하다.
+2. **Time Travel**: 이전 상태로 돌아갈 수 있어 Undo/Redo 구현이 간단하다.
+3. **예측 가능성**: 데이터가 예상치 못하게 변경될 수 없다.
+4. **메모리 효율성**: 구조 공유를 통해 메모리 오버헤드를 최소화한다.
+
+## 예제: 함수형 프로그래밍에서의 활용
+
+```javascript
+// Immutable.js를 사용한 예제
+import { Map, List } from "immutable";
+
+const user1 = Map({ name: "Alice", age: 30 });
+const user2 = user1.set("age", 31);
+
+// user1과 user2는 서로 다른 객체
+console.log(user1 === user2); // false
+console.log(user1.get("age")); // 30 (변경 안됨)
+console.log(user2.get("age")); // 31
+```
+
+## 구현 기법
+
+### 1. Copy-on-Write (CoW)
+
+수정 시점에만 복사하는 지연 복사 기법이다.
+
+### 2. 트리 기반 구조
+
+Binary Search Tree, AVL Tree, B-Tree 등 트리 기반 자료구조에서 자연스럽게 구현된다.
+
+### 3. 버전 관리
+
+Git과 같은 버전 관리 시스템의 원리를 응용한다.
+
+## 비용
+
+1. **성능**: 구조 공유로 인한 포인터 추적 오버헤드
+2. **메모리**: 여러 버전을 유지하기 위한 추가 메모리
+3. **복잡성**: 구현이 더 복잡할 수 있다.
+
+## Referential Transparency와의 관계
+
+Persistent data structure는 [Referential transparency](./Referential_transparency.mdx)를 가능하게 한다. 동일한 입력은 항상 동일한 출력을 생성하며, side effect가 없다.
+
+## 실제 라이브러리
+
+- **JavaScript**: Immutable.js, Immer
+- **Python**: Pyrsistent
+- **Java**: Vavr, Immutables
+- **Kotlin**: Kotlin Collections
+- **Scala**: Scala Collections
+
+### References
+
+- [Persistent Data Structure (en.wikipedia.org)](https://en.wikipedia.org/wiki/Persistent_data_structure)
+- [Immutable.js Documentation](https://immutable-js.com/)
+- [Immer Documentation](https://immerjs.github.io/immer/)
+
+---

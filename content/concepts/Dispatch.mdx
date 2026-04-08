@@ -1,0 +1,347 @@
+---
+title: "Dispatch"
+---
+
+# Dispatch (디스패치)
+
+Dispatch(디스패치)는 런타임에 어떤 메서드나 함수를 실행할지 결정하는 메커니즘이다. 메서드 호출 시 실제 실행될 구현체를 동적으로 선택하는 과정을 의미한다.
+
+## Dispatch의 종류
+
+### 1. 결정 시점에 따른 분류
+
+#### Static Dispatch (컴파일 타임 결정)
+
+메서드가 **컴파일 타임에** 결정된다. 주로 메서드 오버로딩으로 구현된다.
+
+#### 예제
+
+```java
+class Utils {
+  static void log(int value) {
+    System.out.println("Number: " + value);
+  }
+
+  static void log(String value) {
+    System.out.println("String: " + value);
+  }
+}
+
+// 컴파일 타임에 호출할 메서드 결정됨
+int num = 42;
+Utils.log(num);  // Number: 42
+Utils.log("hello");  // String: hello
+```
+
+#### 특징
+
+- 컴파일러가 파라미터 타입을 보고 메서드 결정
+- 메서드 오버로딩 활용
+- 성능이 빠름 (추가 런타임 비용 없음)
+- 타입 안정성 높음
+
+---
+
+#### Dynamic Dispatch (런타임 결정)
+
+메서드가 **런타임에** 결정된다. 객체의 실제 타입을 기반으로 호출된다.
+
+#### 예제
+
+```typescript
+interface Animal {
+  makeSound(): void;
+}
+
+class Dog implements Animal {
+  makeSound(): void {
+    console.log("Woof!");
+  }
+}
+
+class Cat implements Animal {
+  makeSound(): void {
+    console.log("Meow!");
+  }
+}
+
+// 런타임에 실제 타입에 따라 메서드 결정
+const animals: Animal[] = [new Dog(), new Cat()];
+animals.forEach((animal) => animal.makeSound());
+// 출력:
+// Woof!
+// Meow!
+```
+
+#### 특징
+
+- 런타임에 객체의 실제 타입 확인
+- 가상 메서드(virtual method) 활용
+- 다형성 구현의 핵심
+- 약간의 런타임 오버헤드 있음
+
+---
+
+### 2. 영향을 받는 객체 개수에 따른 분류
+
+#### Single Dispatch (단일 디스패치)
+
+가장 흔한 형태로, 메서드를 호출하는 객체(receiver)의 타입에 따라 실행될 메서드를 결정한다. 대부분의 OOP 언어에서 기본적으로 제공하는 디스패치 방식이다.
+
+#### 개념
+
+```
+animal.makeSound()  // 런타임에 animal의 실제 타입에 따라 메서드 결정
+```
+
+- Dog 타입이면 → Dog의 makeSound() 실행
+- Cat 타입이면 → Cat의 makeSound() 실행
+
+#### 예제
+
+```typescript
+abstract class Animal {
+  abstract makeSound(): void;
+}
+
+class Dog extends Animal {
+  makeSound(): void {
+    console.log("Woof!");
+  }
+}
+
+class Cat extends Animal {
+  makeSound(): void {
+    console.log("Meow!");
+  }
+}
+
+// 사용
+const animals: Animal[] = [new Dog(), new Cat()];
+animals.forEach((animal) => animal.makeSound());
+// 출력:
+// Woof!
+// Meow!
+```
+
+#### 특징
+
+- 수신자(receiver) 객체의 타입만 고려
+- 대부분의 OOP 언어에서 기본 디스패치 방식
+- 컴파일 타임에 메서드 호출 시점은 정해지지만, 실제 구현체는 런타임에 결정
+
+---
+
+#### Double Dispatch (이중 디스패치)
+
+두 개의 객체 타입에 따라 실행될 메서드를 결정한다. Visitor 패턴의 핵심 메커니즘이다.
+
+#### 개념
+
+```
+visitor.visit(element)  // 1단계: visitor의 타입으로 메서드 선택
+element.accept(visitor) // 2단계: element의 타입으로 구체적 구현 선택
+```
+
+#### 문제 상황
+
+```typescript
+class PaymentProcessor {
+  processPayment(method: PaymentMethod, amount: number): void {
+    // 문제: 메서드 선택이 method의 런타임 타입을 무시함
+    if (method instanceof CreditCard) {
+      console.log(`Credit card payment: $${amount}`);
+    } else if (method instanceof PayPal) {
+      console.log(`PayPal payment: $${amount}`);
+    }
+    // 새로운 결제 방식 추가 시마다 if-else 추가 필요
+  }
+}
+```
+
+#### Double Dispatch를 이용한 해결
+
+```typescript
+// 1단계: PaymentMethod 인터페이스 정의
+interface PaymentMethod {
+  processPayment(processor: PaymentProcessor, amount: number): void;
+}
+
+// 2단계: 구체적 결제 방식 정의
+class CreditCard implements PaymentMethod {
+  processPayment(processor: PaymentProcessor, amount: number): void {
+    processor.processCreditCard(this, amount);
+  }
+}
+
+class PayPal implements PaymentMethod {
+  processPayment(processor: PaymentProcessor, amount: number): void {
+    processor.processPayPal(this, amount);
+  }
+}
+
+class Bitcoin implements PaymentMethod {
+  processPayment(processor: PaymentProcessor, amount: number): void {
+    processor.processBitcoin(this, amount);
+  }
+}
+
+// 3단계: PaymentProcessor에서 구체적 처리 정의
+class PaymentProcessor {
+  processCreditCard(card: CreditCard, amount: number): void {
+    console.log(`Processing credit card payment: $${amount}`);
+    // 신용카드 특화 로직
+  }
+
+  processPayPal(paypal: PayPal, amount: number): void {
+    console.log(`Processing PayPal payment: $${amount}`);
+    // PayPal 특화 로직
+  }
+
+  processBitcoin(bitcoin: Bitcoin, amount: number): void {
+    console.log(`Processing Bitcoin payment: $${amount}`);
+    // Bitcoin 특화 로직
+  }
+
+  process(method: PaymentMethod, amount: number): void {
+    method.processPayment(this, amount); // 이중 디스패치 호출
+  }
+}
+
+// 사용
+const processor = new PaymentProcessor();
+const methods: PaymentMethod[] = [
+  new CreditCard(),
+  new PayPal(),
+  new Bitcoin(),
+];
+
+methods.forEach((method) => processor.process(method, 100));
+```
+
+#### Double Dispatch의 진행 과정
+
+```
+processor.process(creditCard, 100)
+  ↓
+creditCard.processPayment(processor, 100)  // 1단계: CreditCard 타입으로 메서드 선택
+  ↓
+processor.processCreditCard(creditCard, 100)  // 2단계: processCreditCard 실행
+```
+
+#### 특징
+
+- 두 개의 서로 다른 타입의 객체를 기반으로 메서드 결정
+- Visitor 패턴의 핵심
+- 런타임 타입 정보를 활용해 if-else 체인 제거
+- 새로운 타입 추가 시 기존 코드 수정 최소화
+
+---
+
+#### Multiple Dispatch (다중 디스패치)
+
+세 개 이상의 객체 타입에 따라 메서드를 결정한다.
+
+#### 개념
+
+```typescript
+result.operate(a, b); // a와 b의 타입 조합에 따라 메서드 결정
+```
+
+#### 예제: 수치 연산
+
+```typescript
+abstract class Number {
+  abstract addWith(other: Number): Number;
+  abstract addWithInt(other: Integer): Number;
+  abstract addWithFloat(other: FloatingPoint): Number;
+}
+
+class Integer extends Number {
+  constructor(public value: number) {
+    super();
+  }
+
+  addWith(other: Number): Number {
+    return other.addWithInt(this); // double dispatch
+  }
+
+  addWithInt(other: Integer): Number {
+    return new Integer(this.value + other.value);
+  }
+
+  addWithFloat(other: FloatingPoint): Number {
+    return new FloatingPoint(this.value + other.value);
+  }
+}
+
+class FloatingPoint extends Number {
+  constructor(public value: number) {
+    super();
+  }
+
+  addWith(other: Number): Number {
+    return other.addWithFloat(this); // double dispatch
+  }
+
+  addWithInt(other: Integer): Number {
+    return new FloatingPoint(other.value + this.value);
+  }
+
+  addWithFloat(other: FloatingPoint): Number {
+    return new FloatingPoint(this.value + other.value);
+  }
+}
+
+// 사용
+const intNum = new Integer(5);
+const floatNum = new FloatingPoint(2.5);
+
+const result = intNum.addWith(floatNum);
+console.log(result); // FloatingPoint(7.5)
+```
+
+#### 특징
+
+- 2개 이상의 객체 타입 조합으로 메서드 결정
+- 복잡한 타입 조합 처리에 유용
+- 일부 언어(Common Lisp, Julia)에서 네이티브 지원
+- TypeScript/Java에서는 double dispatch로 구현
+
+## 장단점 비교
+
+## 언제 사용할 것인가
+
+### Single Dispatch 사용
+
+- 메서드 호출 대상의 타입만 중요한 경우
+- 대부분의 일반적인 OOP 코드
+
+### Double Dispatch 사용
+
+- 두 개 이상의 객체 타입 조합이 필요한 경우
+- 런타임 타입 정보가 중요한 경우
+- Visitor 패턴으로 구조와 알고리즘을 분리하고 싶은 경우
+- 새로운 알고리즘/동작을 자주 추가해야 하는 경우
+
+### Multiple Dispatch 사용
+
+- 세 개 이상의 타입 조합 처리 필요
+- 수치 계산, 과학 시뮬레이션 등
+- 복잡한 규칙 기반 시스템
+
+---
+
+## 관련 개념
+
+- [Visitor Pattern](/pattern/Visitor_pattern) - Double dispatch 패턴 활용
+- [Strategy Pattern](/pattern/Strategy_pattern) - 런타임 동작 선택
+- [Polymorphism](/concepts/Polymorphism) - 다양한 형태로 실현되는 기능
+
+---
+
+## 참고자료
+
+- [Dynamic Dispatch (en.wikipedia.org)](https://en.wikipedia.org/wiki/Dynamic_dispatch)
+- [Double Dispatch (en.wikipedia.org)](https://en.wikipedia.org/wiki/Double_dispatch)
+- [Method Resolution Order (en.wikipedia.org)](https://en.wikipedia.org/wiki/Method_resolution_order)

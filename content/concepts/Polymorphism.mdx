@@ -1,0 +1,570 @@
+---
+title: "Polymorphism"
+---
+
+# Polymorphism (다형성)
+
+Polymorphism(다형성)은 "많은 형태"를 의미하는 그리스어에서 유래한 개념으로, **같은 이름의 메서드나 함수가 다양한 형태로 동작**할 수 있다는 의미다. 다형성은 OOP의 핵심 개념 중 하나로, 코드의 재사용성과 유연성을 크게 향상시킨다.
+
+## Polymorphism의 종류
+
+Polymorphism은 구조적 특성에 따라 다음 3가지로 분류된다:
+
+### 1. Ad hoc Polymorphism (임시 다형성)
+
+같은 이름의 함수나 메서드가 **서로 다른 타입에 대해 다양한 구현**을 가지는 경우다. 컴파일러나 인터프리터가 인자의 타입을 보고 적절한 구현을 선택한다.
+
+#### 1.1. Function Overloading (함수 오버로딩)
+
+같은 이름의 함수를 파라미터의 **타입, 개수, 순서**에 따라 다르게 정의한다.
+
+```java
+class Calculator {
+  // int 두 개를 더함
+  public int add(int a, int b) {
+    return a + b;
+  }
+
+  // double 두 개를 더함
+  public double add(double a, double b) {
+    return a + b;
+  }
+
+  // int 세 개를 더함
+  public int add(int a, int b, int c) {
+    return a + b + c;
+  }
+
+  // String을 더함 (문자열 연결)
+  public String add(String a, String b) {
+    return a + b;
+  }
+}
+
+// 컴파일러가 파라미터 타입을 보고 올바른 메서드를 선택
+Calculator calc = new Calculator();
+calc.add(1, 2);                    // int add(int, int) 호출
+calc.add(1.5, 2.5);                // double add(double, double) 호출
+calc.add(1, 2, 3);                 // int add(int, int, int) 호출
+calc.add("Hello ", "World");       // String add(String, String) 호출
+```
+
+**특징:**
+
+- 컴파일 타임 결정 (Static Dispatch)
+- 성능 오버헤드 없음
+- 코드 가독성 향상 (같은 이름으로 유사한 작업)
+
+#### 1.2. Operator Overloading (연산자 오버로딩)
+
+연산자(+, -, \*, /)가 다양한 타입에서 다르게 동작한다.
+
+```java
+class Vector {
+  int x, y;
+
+  public Vector(int x, int y) {
+    this.x = x;
+    this.y = y;
+  }
+
+  public Vector add(Vector other) {
+    return new Vector(this.x + other.x, this.y + other.y);
+  }
+
+  @Override
+  public String toString() {
+    return "(" + x + ", " + y + ")";
+  }
+}
+
+// 같은 + 연산자가 타입에 따라 다르게 동작
+int result = 1 + 2;              // 산술 덧셈: 3
+String text = "1" + "2";          // 문자열 연결: "12"
+Vector v = new Vector(1, 2).add(new Vector(3, 4));  // 벡터 합: (4, 6)
+```
+
+---
+
+### 2. Parametric Polymorphism (매개변수 다형성)
+
+함수나 데이터 타입이 **타입 매개변수(type parameter)**를 사용해 일반화되는 경우다. 같은 코드가 다양한 타입에서 동일하게 동작한다.
+
+#### 개념
+
+```java
+// T라는 타입 매개변수를 사용
+public static <T> void printArray(T[] array) {
+  for (T element : array) {
+    System.out.println(element);
+  }
+}
+
+// 다양한 타입에서 동일한 구현 사용
+printArray(new Integer[]{1, 2, 3});
+printArray(new String[]{"a", "b", "c"});
+printArray(new Double[]{1.5, 2.5, 3.5});
+```
+
+#### 제네릭 클래스
+
+```java
+class Box<T> {
+  private T value;
+
+  public void set(T value) {
+    this.value = value;
+  }
+
+  public T get() {
+    return value;
+  }
+
+  public void printType() {
+    System.out.println("Value type: " + value.getClass().getName());
+  }
+}
+
+// 사용
+Box<Integer> intBox = new Box<>();
+intBox.set(42);
+System.out.println(intBox.get());        // 42
+
+Box<String> strBox = new Box<>();
+strBox.set("Hello");
+System.out.println(strBox.get());        // "Hello"
+```
+
+#### 제네릭 인터페이스
+
+```java
+interface Repository<T> {
+  void save(T entity);
+  T findById(int id);
+  List<T> findAll();
+}
+
+class UserRepository implements Repository<User> {
+  @Override
+  public void save(User user) {
+    // User 저장 로직
+  }
+
+  @Override
+  public User findById(int id) {
+    // User 조회 로직
+  }
+
+  @Override
+  public List<User> findAll() {
+    // 모든 User 조회
+  }
+}
+
+class ProductRepository implements Repository<Product> {
+  @Override
+  public void save(Product product) {
+    // Product 저장 로직
+  }
+
+  @Override
+  public Product findById(int id) {
+    // Product 조회 로직
+  }
+
+  @Override
+  public List<Product> findAll() {
+    // 모든 Product 조회
+  }
+}
+```
+
+**특징:**
+
+- 타입 안전성 보장
+- 코드 중복 제거
+- 컴파일 타임 타입 검사
+- 런타임에는 타입 정보가 제거됨 (Type Erasure in Java)
+
+---
+
+### 3. Subtyping (부분형 다형성)
+
+**상속 관계**에서 부모 타입 참조가 자식 타입 객체를 가리킬 수 있고, 메서드 호출 시 자식 클래스의 구현이 실행된다. Liskov Substitution Principle(LSP)을 따른다.
+
+#### 개념
+
+```
+Animal animal = new Dog();  // 부모 타입이 자식 타입 객체 참조
+animal.makeSound();         // 런타임에 Dog의 makeSound() 호출
+```
+
+#### 예제: Shape 계층
+
+```typescript
+interface Shape {
+  area(): number;
+  perimeter(): number;
+}
+
+class Circle implements Shape {
+  constructor(private radius: number) {}
+
+  area(): number {
+    return Math.PI * this.radius * this.radius;
+  }
+
+  perimeter(): number {
+    return 2 * Math.PI * this.radius;
+  }
+}
+
+class Rectangle implements Shape {
+  constructor(
+    private width: number,
+    private height: number,
+  ) {}
+
+  area(): number {
+    return this.width * this.height;
+  }
+
+  perimeter(): number {
+    return 2 * (this.width + this.height);
+  }
+}
+
+class Triangle implements Shape {
+  constructor(
+    private a: number,
+    private b: number,
+    private c: number,
+  ) {}
+
+  area(): number {
+    const s = (this.a + this.b + this.c) / 2;
+    return Math.sqrt(s * (s - this.a) * (s - this.b) * (s - this.c));
+  }
+
+  perimeter(): number {
+    return this.a + this.b + this.c;
+  }
+}
+
+// 부모 타입으로 다양한 자식 타입 처리
+const shapes: Shape[] = [
+  new Circle(5),
+  new Rectangle(4, 6),
+  new Triangle(3, 4, 5),
+];
+
+// 런타임에 실제 타입에 따라 다른 메서드 호출 (Dynamic Dispatch)
+let totalArea = 0;
+shapes.forEach((shape) => {
+  totalArea += shape.area();
+});
+
+console.log(`Total area: ${totalArea}`);
+```
+
+#### 오버라이딩 (Overriding)
+
+자식 클래스가 부모 클래스의 메서드를 **재정의**한다.
+
+```java
+abstract class Animal {
+  // 추상 메서드
+  abstract void makeSound();
+
+  // 일반 메서드 (오버라이드 가능)
+  void sleep() {
+    System.out.println("Animal is sleeping");
+  }
+}
+
+class Dog extends Animal {
+  @Override
+  void makeSound() {
+    System.out.println("Woof!");
+  }
+
+  // sleep() 메서드를 오버라이드
+  @Override
+  void sleep() {
+    System.out.println("Dog is sleeping in a cozy bed");
+  }
+}
+
+class Cat extends Animal {
+  @Override
+  void makeSound() {
+    System.out.println("Meow!");
+  }
+
+  @Override
+  void sleep() {
+    System.out.println("Cat is sleeping on a sunny window");
+  }
+}
+
+// 사용
+Animal dog = new Dog();
+Animal cat = new Cat();
+
+dog.makeSound();  // Woof!
+dog.sleep();      // Dog is sleeping in a cozy bed
+
+cat.makeSound();  // Meow!
+cat.sleep();      // Cat is sleeping on a sunny window
+```
+
+**특징:**
+
+- 런타임 타입 결정 (Dynamic Dispatch)
+- Virtual Method Table (VMT)을 활용해 메서드 호출
+- Liskov Substitution Principle (LSP) 준수
+- 런타임 성능 오버헤드 존재 (메서드 조회)
+
+## 실전 예제: 데이터 저장소 시스템
+
+3가지 Polymorphism을 함께 활용하는 예제다.
+
+```java
+// 1. Parametric Polymorphism - 제네릭 인터페이스
+interface Repository<T> {
+  void save(T entity);
+  T findById(int id);
+  List<T> findAll();
+}
+
+// 2. Subtyping - 인터페이스 구현
+class UserRepository implements Repository<User> {
+  private List<User> users = new ArrayList<>();
+
+  @Override
+  public void save(User user) {
+    users.add(user);
+    System.out.println("User saved: " + user.getName());
+  }
+
+  @Override
+  public User findById(int id) {
+    return users.stream().filter(u -> u.getId() == id).findFirst().orElse(null);
+  }
+
+  @Override
+  public List<User> findAll() {
+    return new ArrayList<>(users);
+  }
+}
+
+class ProductRepository implements Repository<Product> {
+  private List<Product> products = new ArrayList<>();
+
+  @Override
+  public void save(Product product) {
+    products.add(product);
+    System.out.println("Product saved: " + product.getName());
+  }
+
+  @Override
+  public Product findById(int id) {
+    return products.stream().filter(p -> p.getId() == id).findFirst().orElse(null);
+  }
+
+  @Override
+  public List<Product> findAll() {
+    return new ArrayList<>(products);
+  }
+}
+
+// 3. Ad hoc Polymorphism - 메서드 오버로딩
+class DataService {
+  // Repository<User>에 대한 처리
+  public void process(Repository<User> repo) {
+    System.out.println("Processing user repository");
+  }
+
+  // Repository<Product>에 대한 처리
+  public void process(Repository<Product> repo) {
+    System.out.println("Processing product repository");
+  }
+
+  // 다른 타입의 Repository에 대한 처리 (일반화)
+  public <T> void processGeneric(Repository<T> repo) {
+    List<T> items = repo.findAll();
+    System.out.println("Found " + items.size() + " items");
+  }
+}
+
+// 사용
+DataService service = new DataService();
+
+Repository<User> userRepo = new UserRepository();
+userRepo.save(new User(1, "Alice"));
+service.process(userRepo);  // Subtyping + Parametric
+
+Repository<Product> productRepo = new ProductRepository();
+productRepo.save(new Product(1, "Laptop"));
+service.process(productRepo);  // Ad hoc Polymorphism (메서드 오버로딩)
+
+// 일반적인 처리
+service.processGeneric(userRepo);
+service.processGeneric(productRepo);
+```
+
+---
+
+## 각 Polymorphism의 장단점
+
+### Ad hoc Polymorphism
+
+| 항목     | 설명                                                     |
+| -------- | -------------------------------------------------------- |
+| **장점** | 타입별 최적화 가능, 성능 오버헤드 없음, 컴파일 타임 검사 |
+| **단점** | 중복 코드 작성, 타입 조합이 많으면 메서드 수 증가        |
+
+### Parametric Polymorphism
+
+| 항목     | 설명                                                 |
+| -------- | ---------------------------------------------------- |
+| **장점** | 코드 중복 제거, 타입 안전성, 유지보수 용이           |
+| **단점** | 복잡한 타입 제약, 디버깅 어려움 (컴파일 에러 메시지) |
+
+### Subtyping
+
+| 항목     | 설명                                                                |
+| -------- | ------------------------------------------------------------------- |
+| **장점** | 확장성 우수, 새로운 타입 추가 시 기존 코드 수정 최소화, 느슨한 결합 |
+| **단점** | 런타임 오버헤드, 코드 흐름 추적 어려움, 복잡성 증가                 |
+
+---
+
+## 언제 각 Polymorphism을 사용할 것인가
+
+### Ad hoc Polymorphism 사용
+
+메서드나 함수가 **서로 다른 타입에 대해 명시적으로 다른 구현**을 필요로 할 때
+
+**사용 사례:**
+
+- **메서드 오버로딩**: 타입별로 최적화된 구현이 필요한 경우
+
+  ```java
+  sort(int[] array);           // int 배열 정렬
+  sort(String[] array);        // String 배열 정렬 (대소문자 구분)
+  sort(double[] array);        // double 배열 정렬
+  ```
+
+- **연산자 오버로딩**: 사용자 정의 타입에 표준 연산자 적용
+  ```java
+  Matrix a = new Matrix(...);
+  Matrix b = new Matrix(...);
+  Matrix c = a.add(b);  // + 연산자처럼 사용 가능하도록 구현
+  ```
+
+**특징:**
+
+- 각 타입에 맞게 최적화할 수 있음
+- 타입 안전성이 높음 (컴파일 타임 검사)
+- 성능 오버헤드 없음
+
+---
+
+### Parametric Polymorphism 사용
+
+함수나 클래스가 **타입에 무관하게 동일한 로직**을 수행할 때
+
+**사용 사례:**
+
+- **컬렉션/컨테이너**: 다양한 타입을 저장하는 자료 구조
+
+  ```java
+  List<T> list = new ArrayList<>();
+  Stack<T> stack = new Stack<>();
+  Queue<T> queue = new Queue<>();
+  ```
+
+- **유틸리티 메서드**: 타입에 무관한 일반적인 작업
+
+  ```java
+  public static <T> T getFirst(List<T> list) { ... }
+  public static <T> void swap(T[] array, int i, int j) { ... }
+  public static <T extends Comparable<T>> T max(List<T> list) { ... }
+  ```
+
+- **Repository 패턴**: 모든 엔티티에 동일한 CRUD 작업
+  ```java
+  interface Repository<T> {
+    void save(T entity);
+    T findById(int id);
+    List<T> findAll();
+  }
+  ```
+
+**특징:**
+
+- 코드 중복 제거
+- 타입 안전성 보장
+- 재사용성이 높음
+
+---
+
+### Subtyping 사용
+
+**다양한 타입의 객체를 통일된 인터페이스로 처리**해야 할 때
+
+**사용 사례:**
+
+- **전략 패턴**: 런타임에 알고리즘을 선택
+
+  ```java
+  interface SortingStrategy {
+    void sort(int[] array);
+  }
+
+  class QuickSort implements SortingStrategy { ... }
+  class MergeSort implements SortingStrategy { ... }
+  class Sorter {
+    void sort(int[] array, SortingStrategy strategy) { ... }
+  }
+  ```
+
+- **데이터 처리 파이프라인**: 다양한 처리기를 통일된 방식으로 처리
+
+  ```java
+  interface DataProcessor {
+    void process(Data data);
+  }
+
+  List<DataProcessor> processors = new ArrayList<>();
+  processors.add(new Validator());
+  processors.add(new Transformer());
+  processors.add(new Persister());
+
+  processors.forEach(p -> p.process(data));
+  ```
+
+- **이벤트 핸들러**: 다양한 타입의 이벤트 처리
+
+  ```typescript
+  interface EventHandler {
+    handle(event: Event): void;
+  }
+
+  const handlers: EventHandler[] = [
+    new ClickHandler(),
+    new KeyPressHandler(),
+    new ScrollHandler(),
+  ];
+  ```
+
+**특징:**
+
+- 새로운 타입 추가 시 기존 코드 수정 최소화 (Open/Closed Principle)
+- 런타임에 동적으로 동작을 선택 가능
+- 복잡성이 증가할 수 있음
+
+## 참고자료
+
+- [Polymorphism (en.wikipedia.org)](<https://en.wikipedia.org/wiki/Polymorphism_(computer_science)>)

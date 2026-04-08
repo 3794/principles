@@ -1,0 +1,468 @@
+---
+title: "Composition"
+---
+
+# Composition (조합)
+
+Composition(조합)은 **여러 객체를 조합해서 더 복잡한 기능을 만드는 설계 방법**이다. "has-a" 관계로 표현되며, 한 클래스가 다른 클래스의 인스턴스를 멤버 변수로 포함한다.
+
+> **Composition over Inheritance**: 상속보다 조합을 선호하라는 설계 원칙
+
+---
+
+## Composition의 개념
+
+### 기본 구조
+
+```
+A "has-a" B (A는 B를 가진다)
+```
+
+```java
+// B는 독립적인 클래스
+class Engine {
+  void start() {
+    System.out.println("Engine started");
+  }
+}
+
+// A는 B를 포함한다 (Composition)
+class Car {
+  private Engine engine;  // B의 인스턴스를 멤버 변수로 가짐
+
+  public Car() {
+    this.engine = new Engine();
+  }
+
+  public void start() {
+    engine.start();  // B의 메서드를 위임(delegate)
+  }
+}
+```
+
+### Inheritance vs Composition
+
+| 측면 | Inheritance (상속) | Composition (조합) |
+|------|-------------------|------------------|
+| **관계** | "is-a" (∼이다) | "has-a" (∼를 가진다) |
+| **구조** | 부모-자식 계층 관계 | 독립적인 객체의 조합 |
+| **예** | Dog is-a Animal | Car has-a Engine |
+| **결합도** | 높음 | 낮음 |
+| **유연성** | 낮음 | 높음 |
+| **런타임 변경** | 불가능 | 가능 |
+
+---
+
+## Composition의 종류
+
+### 1. Simple Composition (단순 조합)
+
+한 객체가 다른 객체의 인스턴스를 포함하는 가장 기본적인 형태다.
+
+```java
+class Address {
+  private String city;
+  private String zipCode;
+
+  public Address(String city, String zipCode) {
+    this.city = city;
+    this.zipCode = zipCode;
+  }
+
+  public void displayAddress() {
+    System.out.println(city + " " + zipCode);
+  }
+}
+
+class Person {
+  private String name;
+  private Address address;  // Address 객체를 포함
+
+  public Person(String name, Address address) {
+    this.name = name;
+    this.address = address;
+  }
+
+  public void displayInfo() {
+    System.out.println("Name: " + name);
+    address.displayAddress();
+  }
+}
+
+// 사용
+Address addr = new Address("Seoul", "12345");
+Person person = new Person("Alice", addr);
+person.displayInfo();
+```
+
+---
+
+### 2. Delegation (위임)
+
+Composition 객체의 메서드를 호출해 기능을 구현하는 방식이다.
+
+```java
+interface PaymentMethod {
+  void pay(double amount);
+}
+
+class CreditCard implements PaymentMethod {
+  @Override
+  public void pay(double amount) {
+    System.out.println("Paying " + amount + " with credit card");
+  }
+}
+
+class PaymentProcessor {
+  private PaymentMethod paymentMethod;
+
+  public PaymentProcessor(PaymentMethod paymentMethod) {
+    this.paymentMethod = paymentMethod;
+  }
+
+  // PaymentMethod에 위임
+  public void processPayment(double amount) {
+    paymentMethod.pay(amount);
+  }
+}
+
+// 사용
+PaymentMethod card = new CreditCard();
+PaymentProcessor processor = new PaymentProcessor(card);
+processor.processPayment(100.0);  // CreditCard의 pay() 메서드 호출
+```
+
+런타임에 동작을 변경할 수 있다:
+
+```java
+// PaymentProcessor 객체를 만들고
+PaymentProcessor processor = new PaymentProcessor(new CreditCard());
+
+// 나중에 결제 방식을 변경
+processor.setPaymentMethod(new PayPal());
+processor.processPayment(50.0);  // PayPal로 결제
+```
+
+---
+
+### 3. Aggregation (집합)
+
+여러 객체의 집합을 관리하는 형태다.
+
+```java
+class Department {
+  private String name;
+  private List<Employee> employees;
+
+  public Department(String name) {
+    this.name = name;
+    this.employees = new ArrayList<>();
+  }
+
+  public void addEmployee(Employee emp) {
+    employees.add(emp);
+  }
+
+  public void listEmployees() {
+    System.out.println("Department: " + name);
+    for (Employee emp : employees) {
+      emp.displayInfo();
+    }
+  }
+}
+
+class Employee {
+  private String name;
+  private String role;
+
+  public Employee(String name, String role) {
+    this.name = name;
+    this.role = role;
+  }
+
+  public void displayInfo() {
+    System.out.println("  - " + name + " (" + role + ")");
+  }
+}
+
+// 사용
+Department dept = new Department("Engineering");
+dept.addEmployee(new Employee("Alice", "Developer"));
+dept.addEmployee(new Employee("Bob", "Designer"));
+dept.listEmployees();
+```
+
+---
+
+## Composition의 실전 예제
+
+### 예제 1: 문서 작성 시스템
+
+상속으로 할 수 없는 다중 역할을 조합으로 구현한다.
+
+```java
+// 기능들을 독립적인 클래스로 분리
+interface Formatter {
+  String format(String text);
+}
+
+class PDFFormatter implements Formatter {
+  @Override
+  public String format(String text) {
+    return "[PDF] " + text;
+  }
+}
+
+class HTMLFormatter implements Formatter {
+  @Override
+  public String format(String text) {
+    return "<html>" + text + "</html>";
+  }
+}
+
+interface Saver {
+  void save(String content, String filename);
+}
+
+class FileSystemSaver implements Saver {
+  @Override
+  public void save(String content, String filename) {
+    System.out.println("Saving to file: " + filename);
+  }
+}
+
+class CloudSaver implements Saver {
+  @Override
+  public void save(String content, String filename) {
+    System.out.println("Saving to cloud: " + filename);
+  }
+}
+
+// 문서 클래스: 포매터와 저장소를 조합
+class Document {
+  private String content;
+  private Formatter formatter;
+  private Saver saver;
+
+  public Document(Formatter formatter, Saver saver) {
+    this.formatter = formatter;
+    this.saver = saver;
+  }
+
+  public void write(String text) {
+    this.content = text;
+  }
+
+  public void export(String filename) {
+    String formatted = formatter.format(content);
+    saver.save(formatted, filename);
+  }
+}
+
+// 사용: 런타임에 동작 조합 선택
+Document pdfDoc = new Document(new PDFFormatter(), new FileSystemSaver());
+pdfDoc.write("Hello World");
+pdfDoc.export("document.pdf");
+
+Document htmlDoc = new Document(new HTMLFormatter(), new CloudSaver());
+htmlDoc.write("Hello World");
+htmlDoc.export("document.html");
+```
+
+### 예제 2: 게임 캐릭터
+
+상속 대신 컴포넌트를 조합해서 캐릭터 능력을 동적으로 구성한다.
+
+```java
+// 능력을 인터페이스로 정의
+interface Attack {
+  void attack();
+}
+
+interface Defense {
+  void defend();
+}
+
+interface Movement {
+  void move();
+}
+
+// 구체적 구현들
+class SwordAttack implements Attack {
+  @Override
+  public void attack() {
+    System.out.println("Attacking with sword!");
+  }
+}
+
+class MagicAttack implements Attack {
+  @Override
+  public void attack() {
+    System.out.println("Casting magic spell!");
+  }
+}
+
+class ShieldDefense implements Defense {
+  @Override
+  public void defend() {
+    System.out.println("Defending with shield!");
+  }
+}
+
+class MagicBarrier implements Defense {
+  @Override
+  public void defend() {
+    System.out.println("Casting magic barrier!");
+  }
+}
+
+class FlyingMovement implements Movement {
+  @Override
+  public void move() {
+    System.out.println("Flying through the sky!");
+  }
+}
+
+class WalkingMovement implements Movement {
+  @Override
+  public void move() {
+    System.out.println("Walking on ground!");
+  }
+}
+
+// 캐릭터: 다양한 능력을 조합
+class Character {
+  private String name;
+  private Attack attack;
+  private Defense defense;
+  private Movement movement;
+
+  public Character(String name, Attack attack, Defense defense, Movement movement) {
+    this.name = name;
+    this.attack = attack;
+    this.defense = defense;
+    this.movement = movement;
+  }
+
+  public void performAction(String action) {
+    System.out.println("\n" + name + " performs " + action);
+    if (action.equals("attack")) attack.attack();
+    if (action.equals("defend")) defense.defend();
+    if (action.equals("move")) movement.move();
+  }
+}
+
+// 사용: 능력 조합으로 다양한 캐릭터 생성
+Character warrior = new Character(
+  "Warrior",
+  new SwordAttack(),
+  new ShieldDefense(),
+  new WalkingMovement()
+);
+
+Character wizard = new Character(
+  "Wizard",
+  new MagicAttack(),
+  new MagicBarrier(),
+  new FlyingMovement()
+);
+
+warrior.performAction("attack");
+wizard.performAction("attack");
+```
+
+---
+
+## Composition의 장단점
+
+### 장점
+
+| 항목 | 설명 |
+|------|------|
+| **유연성** | 런타임에 동작을 변경할 수 있음 |
+| **느슨한 결합** | 객체 간 의존성이 낮음 |
+| **코드 재사용** | 다양한 조합으로 새로운 기능 구현 |
+| **테스트 용이** | Mock 객체로 쉽게 테스트 가능 |
+| **단일 책임** | 각 클래스가 한 가지 역할만 담당 |
+
+### 단점
+
+| 항목 | 설명 |
+|------|------|
+| **복잡성** | 많은 작은 객체들을 관리해야 함 |
+| **성능** | 객체 간 호출로 약간의 오버헤드 |
+| **학습곡선** | 설계가 복잡할 수 있음 |
+
+---
+
+## Composition vs Inheritance 결정하기
+
+### Inheritance 사용하는 경우
+
+- **is-a 관계**가 명확한 경우
+  ```java
+  Dog extends Animal  // Dog는 Animal이다
+  ```
+
+- **공통 기능을 상속받아야 하는 경우**
+  ```java
+  class Vehicle {
+    void move() { ... }
+  }
+  class Car extends Vehicle { ... }
+  ```
+
+### Composition 사용하는 경우
+
+- **has-a 관계**인 경우
+  ```java
+  Car has-a Engine  // Car는 Engine을 가진다
+  ```
+
+- **런타임에 동작을 변경해야 하는 경우**
+  ```java
+  payment.setPaymentMethod(new CreditCard());  // 동작 변경 가능
+  ```
+
+- **다중 역할이 필요한 경우**
+  ```java
+  Document has-a Formatter and Saver
+  ```
+
+- **상속 계층이 깊어질 가능성이 있는 경우**
+  ```java
+  // 상속: Shape -> Polygon -> Triangle (깊음)
+  // Composition: Triangle has-a Point, has-a Color (유연함)
+  ```
+
+---
+
+## 디자인 패턴과 Composition
+
+많은 디자인 패턴이 Composition을 활용한다:
+
+| 패턴 | 설명 |
+|------|------|
+| **Strategy** | 알고리즘을 객체로 캡슐화해 조합 |
+| **Decorator** | 객체에 동적으로 기능 추가 |
+| **Proxy** | 객체 접근을 제어하는 객체로 감싸기 |
+| **Adapter** | 호환되지 않는 인터페이스를 조합으로 연결 |
+| **Composite** | 객체들을 트리 구조로 조합 |
+| **Facade** | 복잡한 객체들을 간단한 인터페이스로 조합 |
+
+---
+
+## 관련 개념
+
+- [Polymorphism](/concepts/Polymorphism) - Composition에서 인터페이스 기반 설계
+- [Dispatch](/concepts/Dispatch) - Composition 객체의 메서드 호출 메커니즘
+- [Design Patterns](/pattern/Design_patterns) - Composition을 활용한 패턴들
+- [SOLID Principles](/concepts/SOLID_principles) - Composition 관련 설계 원칙
+
+---
+
+## 참고자료
+
+- [Composition over Inheritance (en.wikipedia.org)](https://en.wikipedia.org/wiki/Composition_over_inheritance)
+- [Object Composition (en.wikipedia.org)](https://en.wikipedia.org/wiki/Object_composition)
+- [Favor Composition over Inheritance (Refactoring.Guru)](https://refactoring.guru/design-patterns/composition-over-inheritance)

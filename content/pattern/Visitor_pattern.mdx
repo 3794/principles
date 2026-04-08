@@ -18,37 +18,70 @@ Visitor(방문자) 패턴은 [OOP](/concepts/Object-oriented_programming)에서 
 
 ### 1. Element 정의 (도형들)
 
-```typescript
+```java
 // 방문자가 방문받을 도형 인터페이스
 interface Shape {
-  accept(visitor: ShapeVisitor): void;
+  void accept(ShapeVisitor visitor);
 }
 
 // 구체적인 도형들
 class Circle implements Shape {
-  constructor(public radius: number) {}
+  private double radius;
 
-  accept(visitor: ShapeVisitor): void {
+  public Circle(double radius) {
+    this.radius = radius;
+  }
+
+  public double getRadius() {
+    return radius;
+  }
+
+  @Override
+  public void accept(ShapeVisitor visitor) {
     visitor.visitCircle(this);
   }
 }
 
 class Rectangle implements Shape {
-  constructor(public width: number, public height: number) {}
+  private double width;
+  private double height;
 
-  accept(visitor: ShapeVisitor): void {
+  public Rectangle(double width, double height) {
+    this.width = width;
+    this.height = height;
+  }
+
+  public double getWidth() {
+    return width;
+  }
+
+  public double getHeight() {
+    return height;
+  }
+
+  @Override
+  public void accept(ShapeVisitor visitor) {
     visitor.visitRectangle(this);
   }
 }
 
 class Triangle implements Shape {
-  constructor(
-    public sideA: number,
-    public sideB: number,
-    public sideC: number
-  ) {}
+  private double sideA;
+  private double sideB;
+  private double sideC;
 
-  accept(visitor: ShapeVisitor): void {
+  public Triangle(double sideA, double sideB, double sideC) {
+    this.sideA = sideA;
+    this.sideB = sideB;
+    this.sideC = sideC;
+  }
+
+  public double getSideA() { return sideA; }
+  public double getSideB() { return sideB; }
+  public double getSideC() { return sideC; }
+
+  @Override
+  public void accept(ShapeVisitor visitor) {
     visitor.visitTriangle(this);
   }
 }
@@ -56,42 +89,44 @@ class Triangle implements Shape {
 
 ### 2. Visitor 인터페이스 정의
 
-```typescript
+```java
 // 모든 방문자가 구현해야 할 인터페이스
 interface ShapeVisitor {
-  visitCircle(circle: Circle): void;
-  visitRectangle(rectangle: Rectangle): void;
-  visitTriangle(triangle: Triangle): void;
+  void visitCircle(Circle circle);
+  void visitRectangle(Rectangle rectangle);
+  void visitTriangle(Triangle triangle);
 }
 ```
 
 ### 3. 구체적인 Visitor 구현 (넓이 계산)
 
-```typescript
+```java
 class AreaCalculator implements ShapeVisitor {
-  private totalArea: number = 0;
+  private double totalArea = 0;
 
-  getTotalArea(): number {
-    return this.totalArea;
+  public double getTotalArea() {
+    return totalArea;
   }
 
-  visitCircle(circle: Circle): void {
-    this.totalArea += Math.PI * circle.radius * circle.radius;
+  @Override
+  public void visitCircle(Circle circle) {
+    totalArea += Math.PI * circle.getRadius() * circle.getRadius();
   }
 
-  visitRectangle(rectangle: Rectangle): void {
-    this.totalArea += rectangle.width * rectangle.height;
+  @Override
+  public void visitRectangle(Rectangle rectangle) {
+    totalArea += rectangle.getWidth() * rectangle.getHeight();
   }
 
-  visitTriangle(triangle: Triangle): void {
+  @Override
+  public void visitTriangle(Triangle triangle) {
     // 헤론의 공식 사용
-    const s =
-      (triangle.sideA + triangle.sideB + triangle.sideC) / 2;
-    this.totalArea += Math.sqrt(
+    double s = (triangle.getSideA() + triangle.getSideB() + triangle.getSideC()) / 2;
+    totalArea += Math.sqrt(
       s *
-        (s - triangle.sideA) *
-        (s - triangle.sideB) *
-        (s - triangle.sideC)
+        (s - triangle.getSideA()) *
+        (s - triangle.getSideB()) *
+        (s - triangle.getSideC())
     );
   }
 }
@@ -99,48 +134,58 @@ class AreaCalculator implements ShapeVisitor {
 
 ### 4. 다른 Visitor 구현 (둘레 계산)
 
-```typescript
+```java
 class PerimeterCalculator implements ShapeVisitor {
-  private totalPerimeter: number = 0;
+  private double totalPerimeter = 0;
 
-  getTotalPerimeter(): number {
-    return this.totalPerimeter;
+  public double getTotalPerimeter() {
+    return totalPerimeter;
   }
 
-  visitCircle(circle: Circle): void {
-    this.totalPerimeter += 2 * Math.PI * circle.radius;
+  @Override
+  public void visitCircle(Circle circle) {
+    totalPerimeter += 2 * Math.PI * circle.getRadius();
   }
 
-  visitRectangle(rectangle: Rectangle): void {
-    this.totalPerimeter += 2 * (rectangle.width + rectangle.height);
+  @Override
+  public void visitRectangle(Rectangle rectangle) {
+    totalPerimeter += 2 * (rectangle.getWidth() + rectangle.getHeight());
   }
 
-  visitTriangle(triangle: Triangle): void {
-    this.totalPerimeter +=
-      triangle.sideA + triangle.sideB + triangle.sideC;
+  @Override
+  public void visitTriangle(Triangle triangle) {
+    totalPerimeter += triangle.getSideA() + triangle.getSideB() + triangle.getSideC();
   }
 }
 ```
 
 ### 5. 사용 예제
 
-```typescript
-// 도형 컬렉션
-const shapes: Shape[] = [
-  new Circle(5),
-  new Rectangle(4, 6),
-  new Triangle(3, 4, 5),
-];
+```java
+public class VisitorPatternDemo {
+  public static void main(String[] args) {
+    // 도형 컬렉션
+    List<Shape> shapes = Arrays.asList(
+      new Circle(5),
+      new Rectangle(4, 6),
+      new Triangle(3, 4, 5)
+    );
 
-// 넓이 계산
-const areaVisitor = new AreaCalculator();
-shapes.forEach((shape) => shape.accept(areaVisitor));
-console.log(`Total Area: ${areaVisitor.getTotalArea()}`);
+    // 넓이 계산
+    AreaCalculator areaVisitor = new AreaCalculator();
+    for (Shape shape : shapes) {
+      shape.accept(areaVisitor);
+    }
+    System.out.println("Total Area: " + areaVisitor.getTotalArea());
 
-// 둘레 계산 (새로운 알고리즘, 도형 클래스 수정 없음)
-const perimeterVisitor = new PerimeterCalculator();
-shapes.forEach((shape) => shape.accept(perimeterVisitor));
-console.log(`Total Perimeter: ${perimeterVisitor.getTotalPerimeter()}`);
+    // 둘레 계산 (새로운 알고리즘, 도형 클래스 수정 없음)
+    PerimeterCalculator perimeterVisitor = new PerimeterCalculator();
+    for (Shape shape : shapes) {
+      shape.accept(perimeterVisitor);
+    }
+    System.out.println("Total Perimeter: " + perimeterVisitor.getTotalPerimeter());
+  }
+}
 ```
 
 ## Key Points(핵심 포인트)
