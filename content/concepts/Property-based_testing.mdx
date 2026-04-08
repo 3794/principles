@@ -1,0 +1,760 @@
+---
+title: Property-Based Testing
+---
+
+# Property-Based Testing (성질 기반 테스트)
+
+**성질 기반 테스트(Property-Based Testing, PBT)** 는 입력값의 범위에 대한 **성질(Property)** 을 정의하고, 프레임워크가 자동으로 생성한 임의의 테스트 케이스로 그 성질이 항상 참인지 검증하는 테스트 방법론이다.
+
+기존의 예제 기반 테스트(Example-Based Testing)와는 달리, 개발자가 몇 가지 특정 케이스만 테스트하는 것이 아니라 **일반화된 규칙(Property)** 에 대해 무수히 많은 케이스를 자동으로 검증한다.
+
+## Core Concept
+
+### Example-Based Testing vs Property-Based Testing
+
+**Example-Based Testing (예제 기반 테스트):**
+
+```typescript
+describe("add", () => {
+  it("두 양수를 더한다", () => {
+    expect(add(2, 3)).toBe(5);
+  });
+
+  it("음수를 포함한 경우", () => {
+    expect(add(-2, 3)).toBe(1);
+  });
+
+  it("0을 포함한 경우", () => {
+    expect(add(0, 5)).toBe(5);
+  });
+});
+```
+
+문제점:
+
+- 개발자가 생각한 **특정 케이스만** 테스트
+- 엣지 케이스를 놓치기 쉬움
+- 테스트 케이스 작성이 번거로움
+- 오류 패턴을 찾기 어려움
+
+**Property-Based Testing (성질 기반 테스트):**
+
+```typescript
+import fc from "fast-check";
+
+describe("add", () => {
+  it("임의의 두 수를 더한 결과는 두 수의 합이다", () => {
+    fc.assert(
+      fc.property(fc.integer(), fc.integer(), (a, b) => {
+        expect(add(a, b)).toBe(a + b);
+      }),
+    );
+  });
+
+  it("덧셈의 교환법칙: a + b = b + a", () => {
+    fc.assert(
+      fc.property(fc.integer(), fc.integer(), (a, b) => {
+        expect(add(a, b)).toBe(add(b, a));
+      }),
+    );
+  });
+
+  it("덧셈의 결합법칙: (a + b) + c = a + (b + c)", () => {
+    fc.assert(
+      fc.property(fc.integer(), fc.integer(), fc.integer(), (a, b, c) => {
+        expect(add(add(a, b), c)).toBe(add(a, add(b, c)));
+      }),
+    );
+  });
+});
+```
+
+장점:
+
+- **자동으로 100여 개의 임의 케이스** 생성 및 검증
+- 기발한 엣지 케이스 발견
+- 수학적 성질 기반 검증
+- 강력한 테스트 커버리지
+
+### Property의 정의
+
+성질이란 **모든 유효한 입력에 대해 항상 참이어야 하는 규칙**이다:
+
+```
+Property: ∀ input ∈ ValidInputs, predicate(input) ≡ true
+```
+
+성질의 종류:
+
+1. **불변성(Invariant)** - 입력에 상관없이 항상 참
+
+   ```typescript
+   // 리스트 역순은 두 번 역순하면 원래대로
+   fc.property(fc.array(fc.integer()), (arr) => {
+     expect(reverse(reverse(arr))).toEqual(arr);
+   });
+   ```
+
+2. **대칭성(Symmetry)** - 인자 순서와 무관
+
+   ```typescript
+   // 덧셈의 교환법칙
+   fc.property(fc.integer(), fc.integer(), (a, b) => {
+     expect(add(a, b)).toBe(add(b, a));
+   });
+   ```
+
+3. **베웨어(Beverage)** - 추가 작업 후 동등성
+
+   ```typescript
+   // 데이터 인코딩 → 디코딩은 원본과 같아야 함
+   fc.property(fc.string(), (str) => {
+     expect(decode(encode(str))).toBe(str);
+   });
+   ```
+
+4. **아이덤포텐시(Idempotence)** - 반복 적용이 한 번 적용과 같음
+
+   ```typescript
+   // 정렬은 한 번만 해도 이미 정렬됨
+   fc.property(fc.array(fc.integer()), (arr) => {
+     const sorted = sort(arr);
+     expect(sort(sorted)).toEqual(sorted);
+   });
+   ```
+
+5. **모델 기반(Model-Based)** - 단순한 모델과 동치 검증
+   ```typescript
+   // 복잡한 구현이 단순 구현과 같은 결과
+   fc.property(fc.array(fc.integer()), (arr) => {
+     expect(optimizedRemoveDuplicates(arr)).toEqual(
+       simpleRemoveDuplicates(arr),
+     );
+   });
+   ```
+
+## Simple Example
+
+### 1. 문자열 처리 함수 테스트
+
+예제: 텍스트 정규화 함수
+
+```typescript
+// 구현
+function normalizeText(text: string): string {
+  return text
+    .trim() // 앞뒤 공백 제거
+    .toLowerCase() // 소문자로
+    .replace(/\s+/g, " "); // 연속 공백을 단일 공백으로
+}
+
+// Example-Based Testing
+describe("normalizeText - Example-Based", () => {
+  it("기본 정규화", () => {
+    expect(normalizeText("  HELLO  WORLD  ")).toBe("hello world");
+  });
+
+  it("한글 테스트", () => {
+    expect(normalizeText("  안녕하세요  ")).toBe("안녕하세요");
+  });
+});
+
+// Property-Based Testing
+import fc from "fast-check";
+
+describe("normalizeText - Property-Based", () => {
+  it("정규화된 문자열은 양쪽 공백이 없다", () => {
+    fc.assert(
+      fc.property(fc.string(), (text) => {
+        const normalized = normalizeText(text);
+        expect(normalized.startsWith(" ")).toBe(false);
+        expect(normalized.endsWith(" ")).toBe(false);
+      }),
+    );
+  });
+
+  it("정규화된 문자열은 연속 공백이 없다", () => {
+    fc.assert(
+      fc.property(fc.string(), (text) => {
+        const normalized = normalizeText(text);
+        expect(normalized.includes("  ")).toBe(false);
+      }),
+    );
+  });
+
+  it("정규화된 문자열은 소문자만 포함", () => {
+    fc.assert(
+      fc.property(fc.string({ exclude: ["0", "1"] }), (text) => {
+        const normalized = normalizeText(text);
+        const alpha = normalized.replace(/[^a-z]/g, "");
+        expect(alpha).toBe(alpha.toLowerCase());
+      }),
+    );
+  });
+
+  it("빈 문자열을 두 번 정규화해도 같다 (멱등성)", () => {
+    fc.assert(
+      fc.property(fc.string(), (text) => {
+        const once = normalizeText(text);
+        const twice = normalizeText(once);
+        expect(twice).toBe(once);
+      }),
+    );
+  });
+});
+```
+
+### 2. 배열 정렬 함수 테스트
+
+```typescript
+function quickSort(arr: number[]): number[] {
+  if (arr.length <= 1) return arr;
+  const pivot = arr[0];
+  const left = arr.slice(1).filter((x) => x < pivot);
+  const right = arr.slice(1).filter((x) => x >= pivot);
+  return [...quickSort(left), pivot, ...quickSort(right)];
+}
+
+// Property-Based Testing
+import fc from "fast-check";
+
+describe("quickSort - Property-Based", () => {
+  it("정렬된 배열은 비감소(non-decreasing) 순서", () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (arr) => {
+        const sorted = quickSort(arr);
+        for (let i = 1; i < sorted.length; i++) {
+          expect(sorted[i]).toBeGreaterThanOrEqual(sorted[i - 1]);
+        }
+      }),
+    );
+  });
+
+  it("정렬 전후 길이는 같다", () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (arr) => {
+        expect(quickSort(arr).length).toBe(arr.length);
+      }),
+    );
+  });
+
+  it("원본 배열의 모든 원소가 정렬 결과에 포함", () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (arr) => {
+        const sorted = quickSort(arr);
+        arr.forEach((element) => {
+          expect(sorted.includes(element)).toBe(true);
+        });
+      }),
+    );
+  });
+
+  it("정렬된 배열을 다시 정렬해도 같다 (멱등성)", () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (arr) => {
+        const once = quickSort(arr);
+        const twice = quickSort(once);
+        expect(twice).toEqual(once);
+      }),
+    );
+  });
+
+  it("두 구현이 같은 결과를 낸다 (모델 기반)", () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (arr) => {
+        expect(quickSort(arr)).toEqual([...arr].sort((a, b) => a - b));
+      }),
+    );
+  });
+});
+```
+
+### 3. 데이터 구조: 스택(Stack)
+
+```typescript
+class Stack<T> {
+  private items: T[] = [];
+
+  push(item: T): void {
+    this.items.push(item);
+  }
+
+  pop(): T | undefined {
+    return this.items.pop();
+  }
+
+  isEmpty(): boolean {
+    return this.items.length === 0;
+  }
+
+  size(): number {
+    return this.items.length;
+  }
+}
+
+// Property-Based Testing
+import fc from "fast-check";
+
+describe("Stack - Property-Based", () => {
+  it("push 후 pop은 입력한 값을 반환한다", () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (numbers) => {
+        const stack = new Stack<number>();
+        numbers.forEach((n) => stack.push(n));
+
+        const popped: number[] = [];
+        while (!stack.isEmpty()) {
+          popped.push(stack.pop()!);
+        }
+
+        // LIFO: 역순이어야 함
+        expect(popped).toEqual([...numbers].reverse());
+      }),
+    );
+  });
+
+  it("n개 push 후 size는 n이다", () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (numbers) => {
+        const stack = new Stack<number>();
+        numbers.forEach((n) => stack.push(n));
+        expect(stack.size()).toBe(numbers.length);
+      }),
+    );
+  });
+
+  it("빈 스택에서 pop은 undefined", () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (numbers) => {
+        const stack = new Stack<number>();
+        numbers.forEach((n) => stack.push(n));
+
+        // 모두 pop
+        while (!stack.isEmpty()) {
+          stack.pop();
+        }
+
+        expect(stack.pop()).toBeUndefined();
+        expect(stack.isEmpty()).toBe(true);
+      }),
+    );
+  });
+});
+```
+
+## 주요 라이브러리
+
+### JavaScript/TypeScript
+
+**fast-check** - 가장 널리 사용됨
+
+```typescript
+import fc from "fast-check";
+
+fc.assert(
+  fc.property(fc.integer(), fc.string(), (num, str) => {
+    // Property 검증
+    expect(myFunction(num, str)).toBeTruthy();
+  }),
+);
+```
+
+주요 생성기(Generators):
+
+- `fc.integer()` - 정수
+- `fc.string()` - 문자열
+- `fc.array(fc.integer())` - 배열
+- `fc.object()` - 객체
+- `fc.boolean()` - 불린
+- `fc.oneof(...)` - 여러 옵션 중 선택
+
+### Python
+
+**Hypothesis** - Python 표준 라이브러리
+
+```python
+from hypothesis import given
+import hypothesis.strategies as st
+
+@given(st.lists(st.integers()))
+def test_sorted(items):
+    assert sorted(items) == sorted(sorted(items))
+```
+
+### Java
+
+**QuickTheories** 또는 **jqwik**
+
+```java
+@PropertyTest
+void sortingIsIdempotent(@ForAll List<Integer> items) {
+  List<Integer> sorted = sort(items);
+  assertEquals(sorted, sort(sorted));
+}
+```
+
+## 언제 사용할 것인가
+
+### PBT가 좋은 경우
+
+1. **수학적 성질이 명확한 경우**
+
+   ```typescript
+   // 좋은 예: 수학적 성질이 있음
+   // 덧셈: a + b = b + a
+   // 정렬: sort(sort(x)) = sort(x)
+   ```
+
+2. **엣지 케이스가 중요한 경우**
+
+   ```typescript
+   // 경계값 테스트가 많은 경우
+   // 정수 오버플로우, 빈 배열, null 등
+   ```
+
+3. **입력 범위가 넓은 경우**
+   ```typescript
+   // 수동으로 모든 케이스를 작성할 수 없음
+   ```
+
+### PBT가 어려운 경우
+
+1. **성질이 불명확한 경우**
+
+   ```typescript
+   // UI 렌더링, 네트워크 요청 등
+   // 명확한 수학적 성질이 없음
+   ```
+
+2. **상태 의존성이 복잡한 경우**
+
+   ```typescript
+   // 데이터베이스 트랜잭션
+   // 여러 단계의 상호작용
+   ```
+
+3. **성능이 중요한 경우**
+   ```typescript
+   // PBT는 100+번의 케이스 실행
+   // 빠른 피드백이 필요한 경우 오버헤드 증가
+   ```
+
+## PBT의 장점과 단점
+
+### 장점
+
+- **높은 테스트 커버리지** - 수백 개의 랜덤 케이스 자동 생성
+- **엣지 케이스 발견** - 개발자가 생각하지 못한 경우 발견
+- **문서화 효과** - Property는 코드의 의도를 명확하게 표현
+- **리팩토링 안전성** - 성질이 만족되면 구현은 변경해도 됨
+- **버그 패턴 학습** - Shrinking으로 최소 실패 케이스 제시
+
+### 단점
+
+- **학습 곡선** - 성질을 정의하는 것이 어려울 수 있음
+- **성능 오버헤드** - 많은 케이스를 실행하므로 느림
+- **디버깅 어려움** - 랜덤 케이스에서 버그 재현 필요
+- **상태 관리 복잡** - Stateful 테스트는 복잡도 증가
+- **의존성 추가** - 라이브러리 도입 필요
+
+## 실전 팁
+
+### 1. Shrinking
+
+failing case를 최소화하여 보고
+
+```typescript
+import fc from "fast-check";
+
+describe("buggy function", () => {
+  it("should pass", () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (arr) => {
+        expect(buggySort(arr).length).toBe(arr.length);
+      }),
+      { verbose: true }, // Shrinking 과정 출력
+    );
+  });
+});
+
+// 만약 [1000, 999, ..., 1] 배열에서 실패하면
+// 자동으로 [2, 1] 같은 최소 케이스로 축약하여 보고
+```
+
+### 2. 제약 조건(Constraints)
+
+특정 범위의 입력만 테스트
+
+```typescript
+import fc from "fast-check";
+
+fc.assert(
+  fc.property(
+    fc.integer({ min: 0, max: 100 }), // 0~100만
+    fc.string({ minLength: 1 }), // 최소 1글자
+    (num, str) => {
+      expect(myFunction(num, str)).toBeTruthy();
+    },
+  ),
+);
+```
+
+### 3. 조합 생성기(Combinators)
+
+복잡한 입력 구조 생성
+
+```typescript
+import fc from "fast-check";
+
+// 사용자 객체 생성기
+const userArbitrary = fc.record({
+  id: fc.integer({ min: 1 }),
+  name: fc.string({ minLength: 1 }),
+  email: fc.emailAddress(),
+  age: fc.integer({ min: 18, max: 100 }),
+});
+
+fc.assert(
+  fc.property(userArbitrary, (user) => {
+    const created = createUser(user);
+    expect(created.email).toBe(user.email);
+  }),
+);
+```
+
+### 4. 상태 기반 테스트(Stateful)
+
+복잡한 상태 변화 검증
+
+```typescript
+import fc from "fast-check";
+
+describe("BankAccount - Stateful", () => {
+  it("모든 작업 후 불변식 유지", () => {
+    fc.assert(
+      fc.property(
+        fc.commands([
+          fc.tuple(fc.integer({ min: 1, max: 1000 })).map(([amount]) => ({
+            type: "deposit",
+            amount,
+          })),
+          fc.tuple(fc.integer({ min: 1, max: 500 })).map(([amount]) => ({
+            type: "withdraw",
+            amount,
+          })),
+        ]),
+        (commands) => {
+          const account = new BankAccount(1000);
+
+          commands.forEach((cmd) => {
+            if (cmd.type === "deposit") {
+              account.deposit(cmd.amount);
+            } else if (cmd.type === "withdraw") {
+              try {
+                account.withdraw(cmd.amount);
+              } catch (e) {
+                // 잔액 부족은 허용
+              }
+            }
+          });
+
+          // Invariant 검사
+          expect(account.getBalance()).toBeGreaterThanOrEqual(0);
+        },
+      ),
+    );
+  });
+});
+```
+
+## Design by Contract와의 관계
+
+Property-Based Testing은 [Design by Contract](/concepts/Design_by_contract)를 구현하는 강력한 방법이다:
+
+- **Precondition** - 생성기의 제약 조건
+- **Postcondition** - Property의 검증 로직
+- **Invariant** - Property에서 확인하는 불변식
+
+```typescript
+import fc from "fast-check";
+
+describe("BankAccount - PBT로 DbC 검증", () => {
+  // Precondition: 양수만 입금
+  // Postcondition: 잔액 = 이전 잔액 + 입금액
+  // Invariant: 0 <= 잔액 <= MAX
+  it("임의의 입금에 대해 불변식 유지", () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 1, max: 100000 }), (depositAmount) => {
+        const account = new BankAccount(0);
+        const before = account.getBalance();
+
+        account.deposit(depositAmount);
+
+        const after = account.getBalance();
+
+        // Postcondition
+        expect(after).toBe(before + depositAmount);
+
+        // Invariant
+        expect(after).toBeGreaterThanOrEqual(0);
+        expect(after).toBeLessThanOrEqual(1_000_000);
+      }),
+    );
+  });
+});
+```
+
+## 실전 예제: 텍스트 검색 엔진
+
+```typescript
+class SearchEngine {
+  private documents: Map<string, string> = new Map();
+
+  addDocument(id: string, content: string): void {
+    this.documents.set(id, content);
+  }
+
+  search(query: string): string[] {
+    const lowerQuery = query.toLowerCase();
+    return Array.from(this.documents.entries())
+      .filter(([_, content]) => content.toLowerCase().includes(lowerQuery))
+      .map(([id, _]) => id);
+  }
+}
+
+// Property-Based Testing
+import fc from "fast-check";
+
+describe("SearchEngine - Property-Based", () => {
+  // Property 1: 추가된 문서는 자신의 내용으로 검색 가능
+  it("추가된 문서는 그 내용으로 검색 가능", () => {
+    fc.assert(
+      fc.property(
+        fc.record({
+          id: fc.string({ minLength: 1 }),
+          content: fc.string({ minLength: 1 }),
+        }),
+        ({ id, content }) => {
+          const engine = new SearchEngine();
+          engine.addDocument(id, content);
+
+          const results = engine.search(content);
+          expect(results).toContain(id);
+        },
+      ),
+    );
+  });
+
+  // Property 2: 검색 결과의 모든 문서가 쿼리를 포함
+  it("검색 결과는 모두 쿼리를 포함", () => {
+    fc.assert(
+      fc.property(
+        fc.array(
+          fc.record({
+            id: fc.string({ minLength: 1 }),
+            content: fc.string({ minLength: 1 }),
+          }),
+          { maxLength: 10 },
+        ),
+        fc.string({ minLength: 1 }),
+        (documents, query) => {
+          const engine = new SearchEngine();
+          documents.forEach(({ id, content }) => {
+            engine.addDocument(id, content);
+          });
+
+          const results = engine.search(query);
+          results.forEach((id) => {
+            const doc = documents.find((d) => d.id === id);
+            expect(
+              doc!.content.toLowerCase().includes(query.toLowerCase()),
+            ).toBe(true);
+          });
+        },
+      ),
+    );
+  });
+
+  // Property 3: 대소문자 무시 검색
+  it("대소문자를 무시하고 검색", () => {
+    fc.assert(
+      fc.property(fc.string({ minLength: 1 }), (text) => {
+        const engine = new SearchEngine();
+        engine.addDocument("doc", text);
+
+        const resultsLower = engine.search(text.toLowerCase());
+        const resultsUpper = engine.search(text.toUpperCase());
+
+        expect(resultsLower).toEqual(resultsUpper);
+      }),
+    );
+  });
+
+  // Property 4: 빈 쿼리는 모든 문서 반환
+  it("빈 문자열 검색은 모든 문서 포함 (또는 일관된 동작)", () => {
+    fc.assert(
+      fc.property(
+        fc.array(
+          fc.record({
+            id: fc.string({ minLength: 1 }),
+            content: fc.string(),
+          }),
+          { maxLength: 10 },
+        ),
+        (documents) => {
+          const engine = new SearchEngine();
+          documents.forEach(({ id, content }) => {
+            engine.addDocument(id, content);
+          });
+
+          // 빈 문자열은 모든 문자열에 포함됨 (또는 구현에 따라 특별 처리)
+          const results = engine.search("");
+          // 구현에 따라: 모든 문서 또는 빈 결과
+          expect(Array.isArray(results)).toBe(true);
+        },
+      ),
+    );
+  });
+});
+```
+
+## 언제 PBT를 도입할 것인가
+
+### 좋은 시점
+
+1. **핵심 비즈니스 로직** - 정확성이 중요한 경우
+2. **알고리즘 검증** - 정렬, 검색, 그래프 등
+3. **데이터 변환** - 직렬화, 암호화 등
+4. **숫자 계산** - 금융, 과학 계산
+
+### 함께 사용할 것
+
+- Example-Based Test: 명시적 케이스 (엣지 케이스, 특별한 경우)
+- Property-Based Test: 일반화된 성질 (수학적 규칙)
+- Integration Test: 실제 상황에서의 동작
+
+```typescript
+describe("Payment Processing", () => {
+  // Example-based: 특정 케이스
+  describe("Known cases", () => {
+    it("기본 결제 처리", () => {
+      expect(processPayment(100, "USD")).toBe(100);
+    });
+  });
+
+  // Property-based: 일반화된 성질
+  describe("General properties", () => {
+    it("모든 유효한 금액에 대해 처리 가능", () => {
+      fc.assert(
+        fc.property(fc.integer({ min: 1, max: 1_000_000 }), (amount) => {
+          expect(() => processPayment(amount, "USD")).not.toThrow();
+        }),
+      );
+    });
+  });
+});
+```
+
+## References
+
+- [fast-check (GitHub)](https://github.com/dubzzz/fast-check)

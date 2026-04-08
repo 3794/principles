@@ -1,0 +1,825 @@
+---
+title: Table-Driven Design
+---
+
+# Table-Driven Design (테이블 기반 설계)
+
+**테이블 기반 설계(Table-Driven Design)** 는 복잡한 조건문이나 로직을 **데이터 테이블로 대체하는 프로그래밍 기법**이다.
+
+코드의 흐름(Control Flow)을 데이터(Data)로 표현함으로써 조건문의 복잡성을 줄이고, 로직과 데이터를 분리하며, 유지보수와 확장을 용이하게 한다.
+
+## Core Concept
+
+### 기본 아이디어
+
+**조건문 중심 설계 (조건이 많아질수록 복잡):**
+
+```typescript
+function getDiscount(customerType: string, purchaseAmount: number): number {
+  if (customerType === "vip") {
+    if (purchaseAmount > 1000) return 0.2;
+    if (purchaseAmount > 500) return 0.15;
+    return 0.1;
+  } else if (customerType === "regular") {
+    if (purchaseAmount > 1000) return 0.1;
+    if (purchaseAmount > 500) return 0.05;
+    return 0;
+  } else if (customerType === "new") {
+    return 0;
+  }
+  return 0;
+}
+```
+
+문제점:
+
+- 조건이 증가할수록 코드 복잡도 증가 (O(n²))
+- 규칙 변경 시 코드 수정 필요
+- 테스트 케이스 관리 어려움
+- 로직과 데이터가 혼재
+
+**테이블 기반 설계 (데이터로 규칙 표현):**
+
+```typescript
+// 데이터 테이블: 규칙을 명시적으로 정의
+const discountTable = [
+  { customerType: "vip", minAmount: 1000, discount: 0.2 },
+  { customerType: "vip", minAmount: 500, discount: 0.15 },
+  { customerType: "vip", minAmount: 0, discount: 0.1 },
+  { customerType: "regular", minAmount: 1000, discount: 0.1 },
+  { customerType: "regular", minAmount: 500, discount: 0.05 },
+  { customerType: "regular", minAmount: 0, discount: 0 },
+  { customerType: "new", minAmount: 0, discount: 0 },
+];
+
+// 일반화된 로직: 테이블을 탐색
+function getDiscount(customerType: string, purchaseAmount: number): number {
+  const entry = discountTable.find(
+    (entry) =>
+      entry.customerType === customerType && entry.minAmount <= purchaseAmount,
+  );
+  return entry?.discount ?? 0;
+}
+```
+
+장점:
+
+- 규칙과 로직 분리
+- 새로운 규칙 추가 시 테이블만 수정
+- 규칙이 명시적으로 보임
+- 테스트가 단순함 (테이블 데이터만 검증)
+
+### 테이블 기반 설계의 3가지 패턴
+
+**1. 조회 테이블(Lookup Table)**
+
+```typescript
+// 상태 → 다음 동작
+const stateActions: Record<string, () => void> = {
+  IDLE: () => console.log("대기 중"),
+  LOADING: () => console.log("로딩 중"),
+  SUCCESS: () => console.log("성공"),
+  ERROR: () => console.log("오류"),
+};
+
+// 조건문 대신 테이블 조회
+function handleState(state: string) {
+  const action = stateActions[state];
+  if (action) action();
+}
+```
+
+**2. 규칙 테이블(Rule Table)**
+
+```typescript
+// 조건과 동작을 쌍으로 저장
+const rules = [
+  { condition: (age: number) => age < 18, label: "미성년자" },
+  { condition: (age: number) => age < 65, label: "성인" },
+  { condition: (age: number) => age >= 65, label: "노인" },
+];
+
+function classify(age: number): string {
+  const rule = rules.find((r) => r.condition(age));
+  return rule?.label ?? "불명";
+}
+```
+
+**3. 상태 전환 테이블(State Transition Table)**
+
+```typescript
+// 현재 상태 → (이벤트) → 다음 상태
+const transitions: Record<string, Record<string, string>> = {
+  DRAFT: { publish: "PUBLISHED", delete: "DELETED" },
+  PUBLISHED: { unpublish: "DRAFT", delete: "DELETED" },
+  DELETED: { restore: "DRAFT" },
+};
+
+function nextState(currentState: string, event: string): string {
+  return transitions[currentState]?.[event] ?? currentState;
+}
+```
+
+## Simple Example
+
+### 1. 요일별 영업 시간 관리
+
+**조건문 방식:**
+
+```typescript
+function getOpenHours(day: string): { open: number; close: number } {
+  if (day === "월" || day === "화" || day === "수" || day === "목") {
+    return { open: 10, close: 22 };
+  } else if (day === "금" || day === "토") {
+    return { open: 10, close: 23 };
+  } else if (day === "일") {
+    return { open: 12, close: 21 };
+  }
+  return { open: 0, close: 0 };
+}
+```
+
+**테이블 기반 방식:**
+
+```typescript
+// 데이터: 요일별 영업 시간
+const hoursTable = [
+  { days: ["월", "화", "수", "목"], open: 10, close: 22 },
+  { days: ["금", "토"], open: 10, close: 23 },
+  { days: ["일"], open: 12, close: 21 },
+];
+
+// 로직: 테이블 조회
+function getOpenHours(day: string): { open: number; close: number } {
+  const entry = hoursTable.find((entry) => entry.days.includes(day));
+  return entry
+    ? { open: entry.open, close: entry.close }
+    : { open: 0, close: 0 };
+}
+
+// 사용
+console.log(getOpenHours("월")); // { open: 10, close: 22 }
+console.log(getOpenHours("토")); // { open: 10, close: 23 }
+```
+
+### 2. 권한 검증 시스템
+
+```typescript
+// 역할별 권한 매트릭스
+const permissionTable = [
+  {
+    role: "admin",
+    permissions: ["read", "write", "delete", "manage_users", "manage_system"],
+  },
+  {
+    role: "editor",
+    permissions: ["read", "write", "delete"],
+  },
+  {
+    role: "viewer",
+    permissions: ["read"],
+  },
+  {
+    role: "guest",
+    permissions: [],
+  },
+];
+
+// 권한 검증 로직
+function hasPermission(role: string, permission: string): boolean {
+  const rolePermissions = permissionTable.find((r) => r.role === role);
+  return rolePermissions?.permissions.includes(permission) ?? false;
+}
+
+// 테스트
+console.log(hasPermission("admin", "manage_users")); // true
+console.log(hasPermission("viewer", "write")); // false
+console.log(hasPermission("editor", "manage_system")); // false
+```
+
+### 3. 상태 머신(State Machine)
+
+```typescript
+// 이벤트 타입
+type OrderEvent = "create" | "confirm" | "ship" | "deliver" | "cancel";
+type OrderState =
+  | "PENDING"
+  | "CONFIRMED"
+  | "SHIPPED"
+  | "DELIVERED"
+  | "CANCELLED";
+
+// 상태 전환 테이블
+const orderStateTransitions: Record<
+  OrderState,
+  Record<OrderEvent, OrderState | null>
+> = {
+  PENDING: {
+    confirm: "CONFIRMED",
+    cancel: "CANCELLED",
+    create: null,
+    ship: null,
+    deliver: null,
+  },
+  CONFIRMED: {
+    ship: "SHIPPED",
+    cancel: "CANCELLED",
+    create: null,
+    confirm: null,
+    deliver: null,
+  },
+  SHIPPED: {
+    deliver: "DELIVERED",
+    cancel: null,
+    create: null,
+    confirm: null,
+    ship: null,
+  },
+  DELIVERED: {
+    create: null,
+    confirm: null,
+    ship: null,
+    deliver: null,
+    cancel: null,
+  },
+  CANCELLED: {
+    create: null,
+    confirm: null,
+    ship: null,
+    deliver: null,
+    cancel: null,
+  },
+};
+
+// 상태 전환 처리
+class Order {
+  private state: OrderState = "PENDING";
+
+  applyEvent(event: OrderEvent): boolean {
+    const nextState = orderStateTransitions[this.state][event];
+    if (nextState === null) {
+      console.error(`Cannot ${event} in ${this.state} state`);
+      return false;
+    }
+    this.state = nextState;
+    console.log(`State changed: ${this.state}`);
+    return true;
+  }
+
+  getState(): OrderState {
+    return this.state;
+  }
+}
+
+// 사용
+const order = new Order();
+order.applyEvent("confirm"); // State changed: CONFIRMED
+order.applyEvent("ship"); // State changed: SHIPPED
+order.applyEvent("deliver"); // State changed: DELIVERED
+order.applyEvent("cancel"); // Cannot cancel in DELIVERED state
+```
+
+## 실전 예제
+
+### 1. 평가 시스템(Grading System)
+
+```typescript
+// 점수 → 학점 매핑
+const gradeTable = [
+  { minScore: 90, grade: "A" },
+  { minScore: 80, grade: "B" },
+  { minScore: 70, grade: "C" },
+  { minScore: 60, grade: "D" },
+  { minScore: 0, grade: "F" },
+];
+
+function getGrade(score: number): string {
+  // 내림차순 정렬 (높은 점수부터 확인)
+  const gradeEntry = gradeTable
+    .sort((a, b) => b.minScore - a.minScore)
+    .find((entry) => score >= entry.minScore);
+  return gradeEntry?.grade ?? "F";
+}
+
+// 테스트
+console.log(getGrade(95)); // A
+console.log(getGrade(75)); // C
+console.log(getGrade(45)); // F
+```
+
+### 2. HTTP 응답 상태 코드 처리
+
+```typescript
+// HTTP 상태 코드별 처리 규칙
+const httpStatusHandlers: Record<number, string> = {
+  200: "성공",
+  201: "생성됨",
+  204: "내용 없음",
+  400: "잘못된 요청",
+  401: "인증 필요",
+  403: "접근 거부",
+  404: "찾을 수 없음",
+  500: "서버 오류",
+  503: "서비스 unavailable",
+};
+
+// 상태 코드별 액션 정의
+const httpStatusActions: Record<number, (response: any) => void> = {
+  200: (response) => console.log("데이터 처리:", response.data),
+  201: (response) => console.log("새 리소스 생성:", response.data),
+  400: (response) => console.error("클라이언트 오류:", response.error),
+  401: (response) => console.error("다시 로그인하세요"),
+  404: (response) => console.error("리소스를 찾을 수 없습니다"),
+  500: (response) => console.error("서버 오류 발생"),
+};
+
+// HTTP 응답 처리
+function handleHttpResponse(statusCode: number, response: any): void {
+  const message = httpStatusHandlers[statusCode] ?? "알 수 없는 상태";
+  const action = httpStatusActions[statusCode];
+
+  console.log(`[${statusCode}] ${message}`);
+  if (action) action(response);
+}
+
+// 사용
+handleHttpResponse(200, { data: { id: 1, name: "Alice" } });
+handleHttpResponse(404, {});
+```
+
+### 3. 결제 수단별 처리
+
+```typescript
+// 결제 수단별 검증 규칙
+interface PaymentHandler {
+  validate: (data: any) => boolean;
+  process: (data: any) => Promise<string>;
+  refund: (transactionId: string) => Promise<void>;
+}
+
+const paymentHandlers: Record<string, PaymentHandler> = {
+  credit_card: {
+    validate: (data) => data.cardNumber && data.cvv,
+    process: async (data) => {
+      console.log("신용카드 결제 처리:", data.cardNumber);
+      return `TXN-${Date.now()}`;
+    },
+    refund: async (txnId) => console.log("신용카드 환불:", txnId),
+  },
+  bank_transfer: {
+    validate: (data) => data.bankCode && data.accountNumber,
+    process: async (data) => {
+      console.log("계좌이체 처리:", data.accountNumber);
+      return `TXN-${Date.now()}`;
+    },
+    refund: async (txnId) => console.log("계좌이체 환불:", txnId),
+  },
+  paypal: {
+    validate: (data) => data.email,
+    process: async (data) => {
+      console.log("PayPal 결제:", data.email);
+      return `TXN-${Date.now()}`;
+    },
+    refund: async (txnId) => console.log("PayPal 환불:", txnId),
+  },
+};
+
+// 결제 처리 로직
+async function processPayment(
+  method: string,
+  paymentData: any,
+): Promise<string | null> {
+  const handler = paymentHandlers[method];
+
+  if (!handler) {
+    console.error("지원하지 않는 결제 수단:", method);
+    return null;
+  }
+
+  if (!handler.validate(paymentData)) {
+    console.error("유효하지 않은 결제 정보");
+    return null;
+  }
+
+  return await handler.process(paymentData);
+}
+
+// 사용
+const txnId = await processPayment("credit_card", {
+  cardNumber: "1234-5678-9012-3456",
+  cvv: "123",
+});
+if (txnId) await paymentHandlers["credit_card"].refund(txnId);
+```
+
+### 4. 데이터 유효성 검사
+
+```typescript
+// 필드별 검증 규칙 테이블
+interface ValidationRule {
+  required?: boolean;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: RegExp;
+  custom?: (value: any) => boolean;
+  message?: string;
+}
+
+const validationRules: Record<string, ValidationRule> = {
+  email: {
+    required: true,
+    pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    message: "유효한 이메일을 입력하세요",
+  },
+  password: {
+    required: true,
+    minLength: 8,
+    pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+    message: "8자 이상, 대문자/소문자/숫자를 포함해야 합니다",
+  },
+  username: {
+    required: true,
+    minLength: 3,
+    maxLength: 20,
+    pattern: /^[a-zA-Z0-9_]+$/,
+    message: "3~20자, 영문/숫자/언더스코어만 가능합니다",
+  },
+  phone: {
+    pattern: /^\d{3}-\d{4}-\d{4}$/,
+    message: "010-1234-5678 형식으로 입력하세요",
+  },
+};
+
+// 검증 로직
+function validate(
+  fieldName: string,
+  value: any,
+): { valid: boolean; message?: string } {
+  const rule = validationRules[fieldName];
+
+  if (!rule) {
+    return { valid: true };
+  }
+
+  if (rule.required && !value) {
+    return { valid: false, message: `${fieldName}은(는) 필수 입력입니다` };
+  }
+
+  if (value && rule.minLength && value.length < rule.minLength) {
+    return {
+      valid: false,
+      message: `최소 ${rule.minLength}자 이상이어야 합니다`,
+    };
+  }
+
+  if (value && rule.maxLength && value.length > rule.maxLength) {
+    return {
+      valid: false,
+      message: `최대 ${rule.maxLength}자 이하여야 합니다`,
+    };
+  }
+
+  if (value && rule.pattern && !rule.pattern.test(value)) {
+    return { valid: false, message: rule.message };
+  }
+
+  if (value && rule.custom && !rule.custom(value)) {
+    return { valid: false, message: rule.message };
+  }
+
+  return { valid: true };
+}
+
+// 사용
+console.log(validate("email", "test@example.com")); // { valid: true }
+console.log(validate("password", "weak")); // { valid: false, message: "..." }
+console.log(validate("username", "ab")); // { valid: false, message: "..." }
+```
+
+## 테이블 구조 선택
+
+### 1. 단순 조회 (Object/Map)
+
+```typescript
+// 변환이 단순한 경우
+const colorNames: Record<string, string> = {
+  "#FF0000": "빨강",
+  "#00FF00": "초록",
+  "#0000FF": "파랑",
+};
+
+function getColorName(hex: string): string {
+  return colorNames[hex] ?? "알 수 없음";
+}
+```
+
+### 2. 배열 + 조건 검색
+
+```typescript
+// 범위나 복잡한 조건이 필요한 경우
+const priceTiers = [
+  { minQty: 100, price: 100 },
+  { minQty: 50, price: 120 },
+  { minQty: 10, price: 150 },
+  { minQty: 1, price: 200 },
+];
+
+function getPrice(quantity: number): number {
+  const tier = priceTiers
+    .sort((a, b) => b.minQty - a.minQty)
+    .find((t) => quantity >= t.minQty);
+  return tier?.price ?? 0;
+}
+```
+
+### 3. 2차원 테이블 (행렬)
+
+```typescript
+// 두 가지 차원으로 인덱싱하는 경우
+const typeConversions: Record<string, Record<string, any>> = {
+  string: {
+    number: (v: string) => parseFloat(v),
+    boolean: (v: string) => v.toLowerCase() === "true",
+  },
+  number: {
+    string: (v: number) => v.toString(),
+    boolean: (v: number) => v !== 0,
+  },
+  boolean: {
+    string: (v: boolean) => v.toString(),
+    number: (v: boolean) => (v ? 1 : 0),
+  },
+};
+
+function convert(value: any, fromType: string, toType: string): any {
+  const converter = typeConversions[fromType]?.[toType];
+  if (!converter) {
+    throw new Error(`Cannot convert from ${fromType} to ${toType}`);
+  }
+  return converter(value);
+}
+
+// 사용
+console.log(convert("123", "string", "number")); // 123
+console.log(convert(true, "boolean", "string")); // "true"
+```
+
+### 4. 함수형 테이블
+
+```typescript
+// 복잡한 로직이 필요한 경우
+interface CommandHandler {
+  execute: (args: string[]) => void;
+  help: () => string;
+}
+
+const commands: Record<string, CommandHandler> = {
+  help: {
+    execute: () => {
+      Object.entries(commands).forEach(([name, handler]) => {
+        console.log(`${name}: ${handler.help()}`);
+      });
+    },
+    help: () => "모든 명령어 표시",
+  },
+  echo: {
+    execute: (args) => console.log(args.join(" ")),
+    help: () => "입력된 텍스트 출력",
+  },
+  exit: {
+    execute: () => process.exit(0),
+    help: () => "프로그램 종료",
+  },
+};
+
+// CLI 처리
+function executeCommand(name: string, args: string[]): void {
+  const handler = commands[name];
+  if (!handler) {
+    console.error(`Unknown command: ${name}`);
+    return;
+  }
+  handler.execute(args);
+}
+```
+
+## 테이블 기반 설계의 장점
+
+- **명확성** - 규칙이 명시적으로 표현됨
+- **유지보수성** - 규칙 변경이 간단함
+- **확장성** - 새로운 규칙 추가가 용이
+- **테스트성** - 테이블 데이터만 검증하면 됨
+- **재사용성** - 로직을 여러 테이블에 적용 가능
+- **성능** - O(1) ~ O(n)의 빠른 조회
+
+## 테이블 기반 설계의 단점
+
+- **초기 설계 어려움** - 테이블 구조 설계가 복잡할 수 있음
+- **가독성** - 동작이 데이터 탐색으로 흩어짐
+- **디버깅** - 어느 규칙이 적용되었는지 추적 어려움
+- **컨텍스트 부족** - 규칙 간의 관계가 불명확할 수 있음
+- **메모리** - 불필요한 데이터를 모두 메모리에 유지
+
+## 언제 사용할 것인가
+
+### 테이블 기반 설계가 좋은 경우
+
+1. **규칙이 자주 변경되는 경우**
+
+   ```typescript
+   // 배송비, 할인율, 권한 등은 자주 변함
+   ```
+
+2. **규칙이 수많은 경우**
+
+   ```typescript
+   // 10+ 개의 조건이 있으면 조건문은 복잡해짐
+   ```
+
+3. **규칙이 데이터 기반인 경우**
+
+   ```typescript
+   // 데이터베이스나 설정 파일에서 읽어오는 경우
+   ```
+
+4. **상태 전환이 정의된 경우**
+   ```typescript
+   // 워크플로우, 상태 머신 등
+   ```
+
+### 테이블 기반 설계가 어려운 경우
+
+1. **복잡한 로직이 필요한 경우**
+
+   ```typescript
+   // 조건이 서로 의존적이거나 복잡한 계산
+   ```
+
+2. **규칙이 거의 변하지 않는 경우**
+
+   ```typescript
+   // 고정된 로직은 조건문이 더 간단할 수 있음
+   ```
+
+3. **성능이 매우 중요한 경우**
+   ```typescript
+   // 테이블 조회 오버헤드가 문제가 될 수 있음
+   ```
+
+## 실전 팁
+
+### 1. 테이블 생성 자동화
+
+```typescript
+// 복잡한 테이블은 빌더 패턴으로 생성
+class PermissionTableBuilder {
+  private table: any[] = [];
+
+  addRole(role: string, permissions: string[]): PermissionTableBuilder {
+    this.table.push({ role, permissions });
+    return this;
+  }
+
+  build(): Record<string, string[]> {
+    return Object.fromEntries(
+      this.table.map((entry) => [entry.role, entry.permissions]),
+    );
+  }
+}
+
+const permissions = new PermissionTableBuilder()
+  .addRole("admin", ["read", "write", "delete"])
+  .addRole("user", ["read", "write"])
+  .addRole("guest", ["read"])
+  .build();
+```
+
+### 2. 동적 테이블 로딩
+
+```typescript
+// 런타임에 테이블 로드
+async function loadStateTransitions(
+  filename: string,
+): Promise<Record<string, Record<string, string>>> {
+  const json = await fs.promises.readFile(filename, "utf-8");
+  return JSON.parse(json);
+}
+
+// transitions.json에서 상태 전환 규칙 로드
+const transitions = await loadStateTransitions("transitions.json");
+```
+
+### 3. 테이블 검증
+
+```typescript
+// 테이블 무결성 검증
+function validateStateTransitions(
+  transitions: Record<string, Record<string, string>>,
+): boolean {
+  const allStates = new Set<string>();
+
+  // 모든 상태 수집
+  Object.entries(transitions).forEach(([state, events]) => {
+    allStates.add(state);
+    Object.values(events).forEach((nextState) => {
+      allStates.add(nextState);
+    });
+  });
+
+  // 모든 상태가 테이블에 정의되었는지 확인
+  for (const state of allStates) {
+    if (!transitions[state]) {
+      console.warn(`State ${state} is reachable but not defined`);
+      return false;
+    }
+  }
+
+  return true;
+}
+```
+
+### 4. 테이블 우선순위 처리
+
+```typescript
+// 여러 규칙 중 첫 번째 일치하는 것 사용 (순서 중요)
+const rules = [
+  { condition: (user: any) => user.status === "banned", result: "denied" },
+  {
+    condition: (user: any) => user.status === "suspended",
+    result: "pending",
+  },
+  { condition: (user: any) => user.status === "active", result: "allowed" },
+];
+
+function checkAccess(user: any): string {
+  for (const rule of rules) {
+    if (rule.condition(user)) {
+      return rule.result;
+    }
+  }
+  return "unknown";
+}
+```
+
+## 관련 패턴
+
+### Strategy Pattern과의 차이
+
+```typescript
+// Strategy: 런타임에 알고리즘 선택
+interface Strategy {
+  execute(): void;
+}
+
+class ConcreteStrategy1 implements Strategy {
+  execute() {
+    /* ... */
+  }
+}
+
+// Table-Driven: 데이터 기반으로 동작 선택
+const strategies: Record<string, () => void> = {
+  strategy1: () => {
+    /* ... */
+  },
+  strategy2: () => {
+    /* ... */
+  },
+};
+```
+
+### Chain of Responsibility와의 차이
+
+```typescript
+// Chain of Responsibility: 순차적으로 처리
+class Handler {
+  nextHandler: Handler;
+  handle(request: Request) {
+    if (canHandle(request)) {
+      // 처리
+    } else {
+      nextHandler.handle(request);
+    }
+  }
+}
+
+// Table-Driven: 테이블에서 즉시 조회
+const handlers: Record<string, (r: Request) => void> = {
+  type1: (r) => {
+    /* ... */
+  },
+  type2: (r) => {
+    /* ... */
+  },
+};
+```
+
+## 함께 보기
+
+- [Separation of Concerns](/generic/Separation_of_concerns) - 로직과 데이터 분리
+- [Strategy Pattern](/pattern/Strategy_pattern) - 데이터 기반 알고리즘 선택
+
+## References
+
+- [State Machines (en.wikipedia.org)](https://en.wikipedia.org/wiki/Finite-state_machine)
+- [Data-Driven Programming (en.wikipedia.org)](https://en.wikipedia.org/wiki/Data-driven_programming)
