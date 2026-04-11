@@ -1,0 +1,843 @@
+---
+title: Feature-Sliced Design
+---
+
+# Feature-Sliced Design (기능 슬라이스 설계)
+
+**Feature-Sliced Design (FSD)** 은 대규모 프론트엔드 애플리케이션을 **기능(Feature) 단위의 독립적인 슬라이스(Slice)로 구조화하는 아키텍처 패턴**이다.
+
+각 기능을 수평적(horizontal) 계층과 수직적(vertical) 슬라이스로 분할하여 모듈화, 확장성, 유지보수성을 향상시킨다.
+
+## Core Concept
+
+### 기본 아이디어
+
+**전통적인 디렉토리 구조 (타입별 분류):**
+
+```
+src/
+  components/
+    Button.tsx
+    Card.tsx
+    Header.tsx
+    Footer.tsx
+  pages/
+    HomePage.tsx
+    ProductPage.tsx
+    UserProfile.tsx
+  utils/
+    api.ts
+    helpers.ts
+    hooks.ts
+  types/
+    index.ts
+```
+
+문제점:
+- 기능과 무관한 파일들이 흩어져 있음
+- 기능 추가/제거 시 여러 폴더 수정 필요
+- 파일 간 의존성 파악 어려움
+- 팀 간 작업 충돌 가능성 높음
+- 코드 재사용 곤란
+
+**Feature-Sliced Design (기능별 슬라이싱):**
+
+```
+src/
+  shared/           # 모든 기능에서 사용하는 공유 자원
+    ui/             # 재사용 가능한 UI 컴포넌트
+    lib/            # 유틸리티, 헬퍼 함수
+    api/            # API 호출 로직
+  entities/         # 도메인 모델 (Product, User, Order 등)
+  features/         # 비즈니스 기능
+    AuthSlice/
+    CartSlice/
+    ProductSearch/
+  widgets/          # 페이지 레벨 컴포넌트
+  pages/            # 라우트된 페이지
+    HomePage/
+    ProductPage/
+  app/              # 애플리케이션 초기화
+```
+
+장점:
+- 기능 단위로 코드 응집도 향상
+- 기능 추가/제거가 명확함
+- 팀별로 독립적으로 작업 가능
+- 코드 재사용과 공유 증대
+- 의존성 흐름이 명확함
+
+### Feature-Sliced Design의 계층 구조
+
+**수평적 계층 (Layers):**
+
+1. **app** - 애플리케이션 초기화, 라우팅, 글로벌 설정
+2. **pages** - 라우트에 매핑되는 페이지 컴포넌트
+3. **widgets** - 독립적인 재사용 가능한 페이지 구성 요소
+4. **features** - 비즈니스 로직을 담은 기능
+5. **entities** - 도메인 모델 (User, Product 등)
+6. **shared** - 모든 계층에서 사용 가능한 공유 자원
+
+**수직적 슬라이싱 (각 계층 내 구조):**
+
+```
+feature/
+  ui/               # 컴포넌트
+    Button.tsx
+  model/            # 상태 관리 (store, reducer)
+    store.ts
+    types.ts
+  lib/              # 유틸리티
+    helpers.ts
+  api/              # API 호출
+    requests.ts
+  index.ts          # 공개 인터페이스
+```
+
+## Simple Example
+
+### 1. 기본 기능 슬라이스 (Authentication)
+
+```typescript
+// src/features/Authentication/index.ts
+// 공개 인터페이스 (Barrel Export)
+export { LoginForm } from './ui/LoginForm'
+export { useAuth } from './model/useAuth'
+export { loginUser } from './api/auth'
+export type { User } from './model/types'
+
+// src/features/Authentication/ui/LoginForm.tsx
+import { useState } from 'react'
+import { loginUser } from '../api/auth'
+import { useAuth } from '../model/useAuth'
+
+export const LoginForm = () => {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const { setUser } = useAuth()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const user = await loginUser(email, password)
+    setUser(user)
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email"
+      />
+      <input
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        type="password"
+      />
+      <button type="submit">Login</button>
+    </form>
+  )
+}
+
+// src/features/Authentication/model/useAuth.ts
+import { atom, useAtom } from 'jotai'
+import type { User } from './types'
+
+const userAtom = atom<User | null>(null)
+
+export const useAuth = () => {
+  const [user, setUser] = useAtom(userAtom)
+  return { user, setUser }
+}
+
+// src/features/Authentication/model/types.ts
+export interface User {
+  id: string
+  email: string
+  name: string
+}
+
+// src/features/Authentication/api/auth.ts
+import type { User } from '../model/types'
+
+export const loginUser = async (email: string, password: string): Promise<User> => {
+  const response = await fetch('/api/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  })
+  return response.json()
+}
+```
+
+### 2. 엔티티 정의
+
+```typescript
+// src/entities/Product/index.ts
+export { ProductCard } from './ui/ProductCard'
+export { useProduct } from './model/useProduct'
+export type { Product } from './model/types'
+
+// src/entities/Product/model/types.ts
+export interface Product {
+  id: string
+  name: string
+  price: number
+  description: string
+  imageUrl: string
+  stock: number
+}
+
+// src/entities/Product/model/useProduct.ts
+import { useQuery } from '@tanstack/react-query'
+import { fetchProduct } from '../api/product'
+
+export const useProduct = (productId: string) => {
+  return useQuery({
+    queryKey: ['product', productId],
+    queryFn: () => fetchProduct(productId),
+  })
+}
+
+// src/entities/Product/ui/ProductCard.tsx
+import type { Product } from '../model/types'
+
+interface ProductCardProps {
+  product: Product
+}
+
+export const ProductCard = ({ product }: ProductCardProps) => {
+  return (
+    <div className="product-card">
+      <img src={product.imageUrl} alt={product.name} />
+      <h3>{product.name}</h3>
+      <p>${product.price}</p>
+      <p>{product.description}</p>
+      <span>{product.stock} in stock</span>
+    </div>
+  )
+}
+```
+
+### 3. 페이지 구성
+
+```typescript
+// src/pages/ProductPage/index.ts
+export { ProductPage } from './ui/ProductPage'
+
+// src/pages/ProductPage/ui/ProductPage.tsx
+import { useParams } from 'react-router-dom'
+import { useProduct } from '@/entities/Product'
+import { ProductDetails } from '@/widgets/ProductDetails'
+import { RelatedProducts } from '@/widgets/RelatedProducts'
+
+export const ProductPage = () => {
+  const { productId } = useParams<{ productId: string }>()
+
+  if (!productId) {
+    return <div>Product not found</div>
+  }
+
+  return (
+    <div className="product-page">
+      <ProductDetails productId={productId} />
+      <RelatedProducts productId={productId} />
+    </div>
+  )
+}
+
+// src/app/routes.tsx
+import { createBrowserRouter } from 'react-router-dom'
+import { ProductPage } from '@/pages/ProductPage'
+import { HomePage } from '@/pages/HomePage'
+import { CartPage } from '@/pages/CartPage'
+
+export const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <HomePage />,
+  },
+  {
+    path: '/products/:productId',
+    element: <ProductPage />,
+  },
+  {
+    path: '/cart',
+    element: <CartPage />,
+  },
+])
+```
+
+## 실전 예제
+
+### 1. 장바구니 기능 (Cart Feature)
+
+```typescript
+// src/features/Cart/index.ts
+export { CartWidget } from './ui/CartWidget'
+export { useCart } from './model/useCart'
+export { addToCart, removeFromCart } from './model/cartSlice'
+export type { CartItem } from './model/types'
+
+// src/features/Cart/model/types.ts
+export interface CartItem {
+  productId: string
+  quantity: number
+  price: number
+}
+
+export interface CartState {
+  items: CartItem[]
+  total: number
+}
+
+// src/features/Cart/model/cartSlice.ts
+import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { CartState, CartItem } from './types'
+
+const initialState: CartState = {
+  items: [],
+  total: 0,
+}
+
+export const cartSlice = createSlice({
+  name: 'cart',
+  initialState,
+  reducers: {
+    addToCart: (state, action: PayloadAction<CartItem>) => {
+      const existingItem = state.items.find(
+        (item) => item.productId === action.payload.productId
+      )
+
+      if (existingItem) {
+        existingItem.quantity += action.payload.quantity
+      } else {
+        state.items.push(action.payload)
+      }
+
+      state.total = state.items.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      )
+    },
+
+    removeFromCart: (state, action: PayloadAction<string>) => {
+      state.items = state.items.filter(
+        (item) => item.productId !== action.payload
+      )
+      state.total = state.items.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      )
+    },
+  },
+})
+
+// src/features/Cart/model/useCart.ts
+import { useAppDispatch, useAppSelector } from '@/app/store'
+import { addToCart, removeFromCart } from './cartSlice'
+import type { CartItem } from './types'
+
+export const useCart = () => {
+  const dispatch = useAppDispatch()
+  const cart = useAppSelector((state) => state.cart)
+
+  return {
+    items: cart.items,
+    total: cart.total,
+    addItem: (item: CartItem) => dispatch(addToCart(item)),
+    removeItem: (productId: string) => dispatch(removeFromCart(productId)),
+  }
+}
+
+// src/features/Cart/ui/CartWidget.tsx
+import { useCart } from '../model/useCart'
+
+export const CartWidget = () => {
+  const { items, total, removeItem } = useCart()
+
+  return (
+    <div className="cart-widget">
+      <h3>Shopping Cart ({items.length})</h3>
+      {items.length === 0 ? (
+        <p>Your cart is empty</p>
+      ) : (
+        <>
+          <ul>
+            {items.map((item) => (
+              <li key={item.productId}>
+                {item.productId} x {item.quantity} = ${item.price * item.quantity}
+                <button onClick={() => removeItem(item.productId)}>Remove</button>
+              </li>
+            ))}
+          </ul>
+          <p>Total: ${total}</p>
+        </>
+      )}
+    </div>
+  )
+}
+
+// src/features/Cart/api/checkout.ts
+import type { CartItem } from '../model/types'
+
+export const createOrder = async (items: CartItem[]) => {
+  const response = await fetch('/api/orders', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  })
+  return response.json()
+}
+```
+
+### 2. 공유 자원 (Shared)
+
+```typescript
+// src/shared/ui/Button.tsx
+import type { ReactNode } from 'react'
+
+interface ButtonProps {
+  children: ReactNode
+  onClick?: () => void
+  variant?: 'primary' | 'secondary'
+}
+
+export const Button = ({
+  children,
+  onClick,
+  variant = 'primary',
+}: ButtonProps) => {
+  return (
+    <button
+      onClick={onClick}
+      className={`button button--${variant}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+// src/shared/ui/Card.tsx
+import type { ReactNode } from 'react'
+
+interface CardProps {
+  children: ReactNode
+  title?: string
+}
+
+export const Card = ({ children, title }: CardProps) => {
+  return (
+    <div className="card">
+      {title && <h3 className="card__title">{title}</h3>}
+      <div className="card__content">{children}</div>
+    </div>
+  )
+}
+
+// src/shared/lib/formatPrice.ts
+export const formatPrice = (price: number, currency = 'USD'): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+  }).format(price)
+}
+
+// src/shared/api/client.ts
+import axios from 'axios'
+
+export const apiClient = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3000/api',
+  timeout: 10000,
+})
+
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// src/shared/index.ts
+// 공유 자원 집중 관리
+export * from './ui'
+export * from './lib'
+export * from './api'
+```
+
+### 3. 위젯 (Widget)
+
+```typescript
+// src/widgets/ProductDetails/index.ts
+export { ProductDetails } from './ui/ProductDetails'
+
+// src/widgets/ProductDetails/ui/ProductDetails.tsx
+import { useProduct } from '@/entities/Product'
+import { useCart } from '@/features/Cart'
+import { Button } from '@/shared/ui'
+import { formatPrice } from '@/shared/lib'
+
+interface ProductDetailsProps {
+  productId: string
+}
+
+export const ProductDetails = ({ productId }: ProductDetailsProps) => {
+  const { data: product, isLoading } = useProduct(productId)
+  const { addItem } = useCart()
+
+  if (isLoading) return <div>Loading...</div>
+  if (!product) return <div>Product not found</div>
+
+  const handleAddToCart = () => {
+    addItem({
+      productId: product.id,
+      quantity: 1,
+      price: product.price,
+    })
+  }
+
+  return (
+    <div className="product-details">
+      <img src={product.imageUrl} alt={product.name} />
+      <div className="product-details__info">
+        <h1>{product.name}</h1>
+        <p className="price">{formatPrice(product.price)}</p>
+        <p className="description">{product.description}</p>
+        <p className="stock">
+          {product.stock > 0
+            ? `${product.stock} in stock`
+            : 'Out of stock'}
+        </p>
+        <Button onClick={handleAddToCart}>Add to Cart</Button>
+      </div>
+    </div>
+  )
+}
+
+// src/widgets/RelatedProducts/ui/RelatedProducts.tsx
+import { useQuery } from '@tanstack/react-query'
+import { ProductCard } from '@/entities/Product'
+import { fetchRelatedProducts } from '../api/related'
+
+interface RelatedProductsProps {
+  productId: string
+}
+
+export const RelatedProducts = ({ productId }: RelatedProductsProps) => {
+  const { data: products = [] } = useQuery({
+    queryKey: ['relatedProducts', productId],
+    queryFn: () => fetchRelatedProducts(productId),
+  })
+
+  return (
+    <section className="related-products">
+      <h2>Related Products</h2>
+      <div className="products-grid">
+        {products.map((product) => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// src/widgets/RelatedProducts/api/related.ts
+import { apiClient } from '@/shared/api'
+
+export const fetchRelatedProducts = async (productId: string) => {
+  const response = await apiClient.get(`/products/${productId}/related`)
+  return response.data
+}
+```
+
+## Feature-Sliced Design의 계층 상세 설명
+
+### shared - 공유 자원
+
+```typescript
+src/shared/
+  ui/                 # 재사용 가능한 UI 컴포넌트
+    Button/
+    Card/
+    Input/
+  lib/                # 유틸리티 함수
+    format.ts
+    helpers.ts
+    storage.ts
+  api/                # API 클라이언트, 인터셉터
+    client.ts
+    config.ts
+  types/              # 전역 타입
+    index.ts
+  config/             # 설정
+    constants.ts
+```
+
+### entities - 도메인 모델
+
+```typescript
+src/entities/
+  Product/            # 상품 엔티티
+    ui/
+    model/
+    api/
+  User/               # 사용자 엔티티
+    ui/
+    model/
+    api/
+  Order/              # 주문 엔티티
+    ui/
+    model/
+    api/
+```
+
+### features - 비즈니스 기능
+
+```typescript
+src/features/
+  Cart/               # 장바구니 기능
+    ui/
+    model/
+    api/
+  Auth/               # 인증 기능
+    ui/
+    model/
+    api/
+  Search/             # 검색 기능
+    ui/
+    model/
+    api/
+```
+
+### widgets - 페이지 구성 요소
+
+```typescript
+src/widgets/
+  Header/
+  Footer/
+  Sidebar/
+  ProductList/
+  SearchBar/
+```
+
+### pages - 라우트 페이지
+
+```typescript
+src/pages/
+  HomePage/
+  ProductPage/
+  CartPage/
+  CheckoutPage/
+```
+
+### app - 애플리케이션 진입점
+
+```typescript
+src/app/
+  index.tsx           # 메인 App 컴포넌트
+  routes.tsx          # 라우팅 설정
+  store.ts            # 상태 관리 설정
+  providers.tsx       # Context/Provider 설정
+```
+
+## Feature-Sliced Design의 장점
+
+- **모듈화** - 각 기능이 독립적인 모듈로 구성
+- **확장성** - 새로운 기능 추가가 명확함
+- **유지보수성** - 관련 코드가 한곳에 모여있음
+- **재사용성** - 명확한 공개 인터페이스 (index.ts)
+- **팀 협업** - 팀원이 서로 다른 기능에 독립적으로 작업 가능
+- **디버깅** - 파일 구조에서 책임이 명확함
+- **테스트** - 기능별로 독립적인 단위 테스트 가능
+- **복잡성 관리** - 계층 구조가 복잡성을 체계적으로 관리
+
+## Feature-Sliced Design의 단점
+
+- **초기 학습곡선** - 구조를 이해하는 데 시간 소요
+- **과도한 구조화** - 작은 프로젝트에는 복잡할 수 있음
+- **파일 개수 증가** - 작은 기능도 여러 파일로 분산
+- **초기 설정** - 프로젝트 초기 구조 설계에 시간 필요
+- **팀 규모 의존** - 규모가 작은 팀에는 오버엔지니어링일 수 있음
+
+## 언제 사용할 것인가
+
+### Feature-Sliced Design이 좋은 경우
+
+1. **대규모 프로젝트**
+
+   ```typescript
+   // 50+ 페이지, 20+ 기능이 있는 엔터프라이즈 애플리케이션
+   ```
+
+2. **다중 팀 협업**
+
+   ```typescript
+   // 여러 팀이 다른 기능을 담당하는 경우
+   ```
+
+3. **빈번한 기능 추가/변경**
+
+   ```typescript
+   // 비즈니스 요구사항이 자주 변하는 경우
+   ```
+
+4. **장기 유지보수 필요**
+
+   ```typescript
+   // 수년간 유지 및 개선될 프로젝트
+   ```
+
+### Feature-Sliced Design이 부담인 경우
+
+1. **소규모 프로젝트**
+
+   ```typescript
+   // 간단한 SPA나 원페이지 사이트
+   ```
+
+2. **프로토타입/MVP**
+
+   ```typescript
+   // 빠른 검증이 중요한 경우
+   ```
+
+3. **원인자 프로젝트**
+
+   ```typescript
+   // 혼자 개발하는 소규모 프로젝트
+   ```
+
+4. **학습 목적**
+
+   ```typescript
+   // 아키텍처보다 기술 습득이 중요한 경우
+   ```
+
+## 실전 팁
+
+### 1. 점진적 적용
+
+```typescript
+// 처음부터 모든 계층을 적용하지 말고 필요한 것부터 시작
+// 예: shared와 pages만 사용하다가 필요시 features, entities 추가
+```
+
+### 2. 명확한 의존성 규칙
+
+```typescript
+// 의존성은 아래 방향으로만 이동
+app → pages → widgets → features → entities → shared
+    ↑         ↑        ↑       ↑        ↑
+   안됨       안됨     안됨    안됨     안됨
+```
+
+### 3. Barrel exports 활용
+
+```typescript
+// src/features/Auth/index.ts
+export { LoginForm } from './ui/LoginForm'
+export { useAuth } from './model/useAuth'
+export type { User, AuthState } from './model/types'
+
+// 사용할 때
+import { LoginForm, useAuth, type User } from '@/features/Auth'
+```
+
+### 4. 경로 별칭 설정
+
+```typescript
+// tsconfig.json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@/shared/*": ["src/shared/*"],
+      "@/entities/*": ["src/entities/*"],
+      "@/features/*": ["src/features/*"],
+      "@/widgets/*": ["src/widgets/*"],
+      "@/pages/*": ["src/pages/*"],
+      "@/app/*": ["src/app/*"]
+    }
+  }
+}
+```
+
+### 5. 자동 생성 스크립트
+
+```bash
+# feature.sh - 새로운 기능 슬라이스 생성
+#!/bin/bash
+
+FEATURE_NAME=$1
+
+mkdir -p src/features/$FEATURE_NAME/{ui,model,api}
+touch src/features/$FEATURE_NAME/ui/index.ts
+touch src/features/$FEATURE_NAME/model/index.ts
+touch src/features/$FEATURE_NAME/model/types.ts
+touch src/features/$FEATURE_NAME/api/index.ts
+touch src/features/$FEATURE_NAME/index.ts
+
+echo "Feature $FEATURE_NAME created"
+
+# 사용
+# bash feature.sh MyNewFeature
+```
+
+### 6. 타입 안정성
+
+```typescript
+// src/shared/types/index.ts
+// 전역 타입 정의
+
+export interface BaseEntity {
+  id: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+// src/entities/Product/model/types.ts
+// 엔티티 타입은 BaseEntity 상속
+import type { BaseEntity } from '@/shared/types'
+
+export interface Product extends BaseEntity {
+  name: string
+  price: number
+  stock: number
+}
+```
+
+## 관련 패턴
+
+### Monorepo와의 조합
+
+```typescript
+// 각 feature를 독립적인 패키지로 구성
+packages/
+  shared/
+  entities/
+  features/
+    cart/
+    auth/
+    search/
+  app/
+```
+
+### 모듈 연맹 (Module Federation)
+
+```typescript
+// 마이크로 프론트엔드 아키텍처와 결합
+// 각 feature를 독립적인 애플리케이션으로 배포
+```
+
+## 함께 보기
+
+- [Clean Architecture](/pattern/Clean_Architecture) - 계층 분리 원칙
+- [Design Patterns](/pattern/Design_patterns) - 디자인 패턴
+- [Modular Reasoning](/concepts/Modular_reasoning) - 모듈식 추론
+
+## References
+
+- [Feature-Sliced Design (Official)](https://feature-sliced.design)
+- [Scalable Frontend Architecture (Medium)](https://medium.com/@alexkondov/scalable-frontend-architecture-5f3c1f00a8b)
+- [Module Organization (en.wikipedia.org)](https://en.wikipedia.org/wiki/Module_system)
