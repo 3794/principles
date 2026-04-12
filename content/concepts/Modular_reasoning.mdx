@@ -4,32 +4,63 @@ title: Modular Reasoning
 
 # Modular Reasoning(모듈화된 추론)
 
-**Modular Reasoning** 은 프로그램을 각 모듈 단위로 분석하고 검증할 수 있도록 하는 방법론이다.
+**Modular Reasoning** 은 시스템 전체를 한꺼번에 이해하려 하지 않고, 모듈 단위로 독립적으로 추론하는것을 말한다.
 
 ---
 
-### 정의
+### 핵심 아이디어
 
-모듈화된 추론은 프로그램의 특정 부분이나 모듈을 분석할 때, 그 부분이 다른 모듈과 어떻게 상호작용하는지에 대한 세부 정보를 알 필요 없이,
-해당 모듈의 명세(specification)만을 기반으로 추론할 수 있도록 한다. 즉, 모듈의 내부 구현을 참조하지 않고도 외부 명세를 통해 correctness를 검증하는 방식이다.
+> "이 모듈이 올바른지 판단하기 위해, 나머지 시스템을 알 필요가 없어야 한다."
+
+모듈 A를 검증할 때 모듈 B, C, D의 내부 구현을 몰라도 된다면 → modular reasoning이 성립한다.
+
+---
+
+### 왜 중요한가
+
+소프트웨어가 커질수록 전체를 동시에 머릿속에 담는 건 불가능하다. Modular reasoning이 가능하면:
+
+- 코드를 국소적으로 읽고 검증할 수 있음
+- 변경의 파급 범위를 예측할 수 있음
+- 테스트가 독립적으로 의미를 가짐
+- 팀 단위 병렬 개발이 가능해짐
+
+---
+
+### 이걸 가능하게 하는 설계 원칙들
+
+1. 명세(Specification) / 계약(Contract):
+   모듈은 "내부가 어떻게 생겼는지"가 아니라 "무엇을 약속하는지"로 소통해야 한다.  
+   → 인터페이스, 타입, pre/postcondition, invariant
+2. 정보 은닉 (Information Hiding):
+   내부 구현이 외부로 노출되면, 외부 코드가 내부 상태에 암묵적으로 의존하게 돼서 reasoning이 깨짐.  
+   → encapsulation, private 접근 제한
+3. 참조 투명성 (Referential Transparency):
+   함수형 프로그래밍의 개념. 같은 입력, 같은 출력이면, 그 함수를 값으로 치환해서 추론할 수 있다.  
+   → side effect가 없을수록 modular reasoning이 쉬워짐
+4. 불변식 (Invariant) 지역화:
+   "이 객체는 항상 이 조건을 만족한다"는 보장이 모듈 내부에서만 관리되어야 한다. 외부에서 그 불변식을 깨뜨릴 수 있으면 reasoning이 전역으로 퍼짐.
+
+---
+
+### 깨지는 경우들
+
+| 패턴               | 왜 modular reasoning을 깨는가                     |
+| ------------------ | ------------------------------------------------- |
+| 전역 변수          | 어떤 모듈이 언제 바꿨는지 추적 불가               |
+| 암묵적 side effect | 함수 시그니처만 봐서는 동작을 알 수 없음          |
+| 구현 상속 남용     | 부모 클래스 내부를 알아야 자식 클래스를 이해 가능 |
+| 순환 의존          | A를 이해하려면 B를, B를 이해하려면 A를 알아야 함  |
+| 암묵적 시간 결합   | "이 함수는 저 함수 다음에 반드시 호출해야 함"     |
 
 ### Local Reasoning과의 차이점
 
-Local Reasoning은 코드 내부에서 사용하는 자원/상태에 대한 reasoning, Modular Reasoning은 모듈 간 인터페이스를 통한 reasoning에 초점을 맞춘다.
+Local reasoning은 함수/라인 수준의 미시적 관점.
+Modular reasoning은 모듈/컴포넌트 수준의 거시적 관점.
 
 #### Example
 
-```typescript
-function increment(x: number) {
-  return x + 1;
-}
-
-function useIncrement(y: number) {
-  return increment(y) * 2;
-}
-```
-
-##### Local Reasoning 관점
+아래 예제 처럼 함수의 구현부만 보고 함수의 동작을 추론하는것이 local reasoning이다.
 
 ```typescript
 function increment(x: number) {
@@ -37,20 +68,34 @@ function increment(x: number) {
 }
 ```
 
-이 함수는 x만 다루기 때문에 `x + 1`만 reasoning 하면 된다.
-즉, x에만 집중해서 이 함수의 동작을 증명할 수 있다면 local reasoning이다.
+하지만 다음 예제 처럼 각 줄을 이해하려고 다른 함수 구현을 찾아다녀야 한다면 local reasoning 실패이다.
+
+```typescript
+// local reasoning이 어려운 경우
+function process(user) {
+  validate(user); // 이게 뭘 던지는지?
+  transform(user); // user를 mutate하나?
+  globalCache.set(user); // 어떤 side effect?
+  return user;
+}
+```
 
 ##### Modular Reasoning 관점
 
+Modular Reasoning은 주로 구조적/논리적 개념이다.  
+모듈의 명세(contract)만으로 그 모듈을 신뢰하고 사용할 수 있는가의 문제이다. 내부 구현이 바뀌어도 외부의 추론이 유효해야 한다.
+
 ```typescript
-function useIncrement(y: number) {
-  return increment(y) * 2;
+// IUserRepository의 내부 구현이 무엇이든 상관없음
+// 이 서비스는 인터페이스 명세만 보고 추론 가능해야 함
+class UserService {
+  constructor(private repo: IUserRepository) {}
+
+  async getUser(id: string) {
+    return this.repo.findById(id); // 구현 몰라도 됨
+  }
 }
 ```
-
-여기서 increment의 구현을 몰라도 "increment는 x를 1증가시킨다"는 스펙만 알면 reasoning 할 수 있다.
-그러면 `useIncrement(3)`은 `4 * 2 = 8`이라는걸 추론할 수 있다.
-즉, 모듈간 인터페이스(스펙)을 기반으로 reasoning 하는것이 modular reasoning이다.
 
 ### References
 
