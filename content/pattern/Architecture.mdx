@@ -4,9 +4,52 @@ title: Architecture
 
 # Software Architecture
 
+아키텍처란 다음과 같이 4가지로 구성되어 있다.[^1]
+
+① 구조 (Structure):
+시스템이 어떤 아키텍처 스타일로 만들어졌는지를 말한다. 마이크로서비스인지, 레이어드인지, 이벤트 기반인지 등등. 구조만 보고 "우리 아키텍처는 마이크로서비스야"라고 말하는 건 아키텍처의 일부만 말하는 것이다.
+
+② 아키텍처 특성 (Architecture Characteristics):
+시스템이 지원해야 하는 품질 속성이다. 기능(무엇을 하는가)과는 별개이다. 예를 들어 "로그인 기능"은 기능이지만, "로그인이 99.99% 가용성을 가져야 한다"는 아키텍처 특성이다. 가용성, 확장성, 보안성, 성능 등이 여기 속한다.
+
+③ 아키텍처 결정 (Architecture Decisions):
+"우리는 이렇게 만들어야 한다"는 규칙이다. 예를 들어 "서비스 레이어는 절대로 데이터베이스에 직접 접근하지 않는다"는 결정이다. 이 결정이 깨지면 아키텍처가 무너지기 시작한다.
+
+④ 설계 원칙 (Design Principles):
+결정과 달리 가이드라인에 가깝다. "가능하면 비동기 통신을 사용해라"처럼 강제가 아닌 권장 방향이다.
+
+### Architecture와 Design의 차이
+
+많은 사람들이 architecture와 design를 혼용해서 사용한다. 엄밀히 구분하자면 다음과 같다.
+
+| Architecture                  | Design                        |
+| ----------------------------- | ----------------------------- |
+| 어떤 기술 스택을 쓸 것인가    | 클래스를 어떻게 나눌 것인가   |
+| 서비스를 어떻게 분리할 것인가 | 메서드를 어떻게 구현할 것인가 |
+| 데이터를 어디에 저장할 것인가 | 변수명을 뭐로 할 것인가       |
+
+architecture는 변경하기 어렵고 비용이 큰 결정들이다. design는 상대적으로 쉽게 바꿀 수 있는 결정들이다.
+그런데 중요한 점은, architecture와 design는 완전히 분리되어 있지 않다는 것이다.
+
+### 트레이드오프
+
+> "아키텍처에는 정답이 없다. 오직 트레이드오프만 있을 뿐이다."
+
+예를 들어 메시지 큐(Message Queue)를 사용할지 말지 결정한다고 하자.
+메시지 큐를 사용하면:
+
+- ✅ 서비스 간 결합도가 낮아진다
+- ✅ 한쪽 서비스가 죽어도 메시지가 유실되지 않는다
+- ❌ 시스템이 복잡해진다
+- ❌ 디버깅이 어려워진다
+- ❌ 운영 비용이 늘어난다
+
+아키텍트는 이 트레이드오프를 분석하고, 현재 상황에서 무엇을 더 중요하게 볼 것인지 결정해야 한다. 정답은 없다. 상황마다 다르다.
+개발자는 주로 "이게 더 좋은 방법이다" 라고 생각하는 경향이 있다. 아키텍트는 "이 방법은 이런 장점과 이런 단점이 있다" 라고 생각해야 한다.
+
 #### Architecture Styles
 
-- Layered
+- [Layered](/pattern/Layered_Architecture)
 - Event-driven
 - Microkernel
 - Microservices
@@ -35,3 +78,7 @@ title: Architecture
 - [My favourite software architecture patterns(levelup.gitconnected.com)](https://levelup.gitconnected.com/my-favourite-software-architecture-patterns-0e57073b4be1)
 - [Architectural Patterns(architectural-patterns.net)](https://architectural-patterns.net/pattern-tree)
 - [10 Common Software Architectural Patterns in a Nutshell(mingrammer.com)](https://mingrammer.com/translation-10-common-software-architectural-patterns-in-a-nutshell/)
+
+---
+
+[^1]: 소프트웨어 아키텍처 101, Fundamentals of Software Architecture
