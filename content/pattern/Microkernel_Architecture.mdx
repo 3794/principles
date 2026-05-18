@@ -1,0 +1,201 @@
+---
+title: Microkernel Architecture
+---
+
+# Microkernel Architecture (Plugin Architecture)
+
+마이크로커널 아키텍처는 시스템의 최소 핵심 기능을 **Core System**에 두고, 변화가 잦거나 선택적인 기능을 **Plugin**으로 분리하는 아키텍처 패턴이다. 플러그인 아키텍처라고도 부른다.
+
+핵심 아이디어는 "변하지 않는 작은 중심부와, 바뀌기 쉬운 확장 기능을 분리한다"는 것이다.
+
+## Structure(구조)
+
+```
+┌─────────────────────────────────────────────┐
+│                 Client / UI                 │
+└──────────────────────┬──────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────┐
+│                 Core System                 │
+│  - 공통 실행 흐름                              │
+│  - 플러그인 등록/발견                           │
+│  - 확장 지점 정의                              │
+│  - 공통 정책, 보안, 로깅                        │
+└──────────┬───────────┬───────────┬──────────┘
+           │           │           │
+┌──────────▼───┐ ┌─────▼──────┐ ┌──▼──────────┐
+│  Plugin A    │ │  Plugin B  │ │  Plugin C   │
+│  Exporter    │ │  Parser    │ │  Formatter  │
+└──────────────┘ └────────────┘ └─────────────┘
+```
+
+## Core System(코어 시스템)
+
+코어 시스템은 애플리케이션이 반드시 가져야 하는 최소한의 기능만 포함한다.
+
+- 플러그인을 등록하고 실행하는 메커니즘
+- 플러그인이 따라야 하는 인터페이스 또는 계약
+- 공통 데이터 모델
+- 인증, 권한, 로깅, 설정 같은 공통 관심사
+- 전체 실행 흐름의 조정
+
+코어는 작을수록 좋다. 코어가 너무 많은 비즈니스 기능을 알기 시작하면 플러그인 구조의 장점이 사라진다.
+
+## Plugin(플러그인)
+
+플러그인은 특정 기능을 독립적으로 구현하는 확장 모듈이다.
+
+- 코어가 정의한 인터페이스를 구현한다
+- 독립적으로 추가, 제거, 교체될 수 있다
+- 코어의 내부 구현에 의존하면 안 된다
+- 자신의 기능에 필요한 의존성을 가질 수 있다
+
+예를 들어 텍스트 에디터라면 Markdown 지원, 코드 하이라이팅, Git 통합, PDF 내보내기 같은 기능을 플러그인으로 둘 수 있다.
+
+## Simple Example(간단한 예제)
+
+문서 변환기를 마이크로커널 아키텍처로 만든 예시이다. 코어는 "변환 요청을 받고 적절한 플러그인을 실행하는 일"만 담당한다.
+
+```typescript
+// core/ConverterPlugin.ts
+export interface ConverterPlugin {
+  readonly format: string;
+  convert(input: string): string;
+}
+```
+
+```typescript
+// core/ConverterKernel.ts
+import { ConverterPlugin } from "./ConverterPlugin";
+
+export class ConverterKernel {
+  private plugins = new Map<string, ConverterPlugin>();
+
+  register(plugin: ConverterPlugin) {
+    this.plugins.set(plugin.format, plugin);
+  }
+
+  convert(format: string, input: string) {
+    const plugin = this.plugins.get(format);
+
+    if (!plugin) {
+      throw new Error(`Unsupported format: ${format}`);
+    }
+
+    return plugin.convert(input);
+  }
+}
+```
+
+```typescript
+// plugins/HtmlConverter.ts
+import { ConverterPlugin } from "../core/ConverterPlugin";
+
+export class HtmlConverter implements ConverterPlugin {
+  readonly format = "html";
+
+  convert(input: string) {
+    return `<p>${input}</p>`;
+  }
+}
+```
+
+```typescript
+// main.ts
+import { ConverterKernel } from "./core/ConverterKernel";
+import { HtmlConverter } from "./plugins/HtmlConverter";
+
+const kernel = new ConverterKernel();
+kernel.register(new HtmlConverter());
+
+console.log(kernel.convert("html", "Hello Microkernel"));
+```
+
+이 구조에서 PDF 변환, Markdown 변환, XML 변환이 필요해져도 코어를 크게 바꾸지 않고 새로운 플러그인을 추가할 수 있다.
+
+## 적용 시기
+
+### 적합한 상황
+
+- 확장 기능이 많고, 기능별로 수명 주기가 다를 때
+- 고객이나 환경에 따라 기능 구성이 달라질 때
+- IDE, 브라우저, 에디터, 빌드 도구처럼 플러그인 생태계가 중요한 제품
+- 핵심 기능은 안정적이지만 주변 기능은 자주 바뀔 때
+- 서드파티 개발자가 기능을 확장해야 할 때
+
+### 부적합한 상황
+
+- 기능 종류가 적고 확장 가능성이 낮을 때
+- 코어와 플러그인 사이의 계약을 안정적으로 정의하기 어려울 때
+- 플러그인 격리, 버전 관리, 보안 검증 비용을 감당하기 어려울 때
+- 단순한 CRUD 애플리케이션처럼 확장 지점보다 데이터 흐름이 더 중요한 경우
+
+## 장점
+
+- 코어 시스템을 작고 안정적으로 유지할 수 있음
+- 기능을 독립적으로 개발하고 배포하기 쉬움
+- 고객별 기능 조합이나 제품 에디션 구성이 쉬움
+- 새로운 기능 추가가 기존 기능에 주는 영향을 줄일 수 있음
+- 외부 개발자나 다른 팀이 확장 기능을 만들기 쉬움
+
+## 단점
+
+- 플러그인 인터페이스를 잘못 설계하면 변경 비용이 커짐
+- 플러그인 간 의존성이 생기면 구조가 빠르게 복잡해짐
+- 런타임 로딩, 버전 호환성, 권한 관리가 어려울 수 있음
+- 디버깅과 테스트가 단일 애플리케이션보다 복잡해질 수 있음
+- 코어가 너무 많은 확장 지점을 제공하면 오히려 이해하기 어려워짐
+
+## Design Guidelines(설계 지침)
+
+### 1. 코어는 정책을, 플러그인은 변형을 담당한다
+
+코어는 전체 흐름과 공통 규칙을 담당하고, 플러그인은 특정 기능의 변형을 담당해야 한다.
+
+```
+좋은 예:
+Core: 결제 흐름을 조정한다
+Plugin: 카드 결제, 계좌 이체, 포인트 결제를 각각 구현한다
+
+나쁜 예:
+Plugin: 결제 흐름 자체를 마음대로 바꾼다
+```
+
+### 2. 플러그인 계약을 작게 유지한다
+
+플러그인 인터페이스가 커질수록 모든 플러그인이 불필요한 메서드를 구현해야 한다. 확장 지점은 작고 명확해야 한다.
+
+```typescript
+// 좋은 예
+interface ExportPlugin {
+  export(document: Document): Buffer;
+}
+
+// 나쁜 예
+interface DocumentPlugin {
+  open(): void;
+  save(): void;
+  export(): Buffer;
+  print(): void;
+  sync(): void;
+}
+```
+
+### 3. 플러그인끼리 직접 의존하지 않게 한다
+
+플러그인 A가 플러그인 B를 직접 호출하기 시작하면 플러그인의 독립성이 약해진다. 필요한 협력은 코어가 중재하거나 이벤트, 메시지, 명시적인 확장 포인트를 통해 처리하는 편이 좋다.
+
+### 4. 실패 격리를 설계한다
+
+플러그인은 코어보다 신뢰하기 어렵다. 플러그인 실행 실패가 전체 시스템 장애로 번지지 않도록 타임아웃, 예외 처리, 권한 제한, 비활성화 전략을 준비해야 한다.
+
+## Related Patterns(관련 패턴)
+
+- [Open-closed principle](/modules/Open-closed_principle) - 기존 코드를 수정하지 않고 기능을 확장한다는 점에서 연결된다.
+- [Inversion of Control](/generic/Inversion_of_Control) - 코어가 플러그인 구현을 직접 만들지 않고 등록된 구현을 호출한다.
+- [Strategy pattern](/pattern/Strategy_pattern) - 작은 범위에서는 전략 객체를 교체하는 구조와 비슷하다.
+- [Microfrontends](/pattern/Microfrontends) - 프론트엔드 영역에서 기능을 독립 모듈로 나누는 접근과 닮아 있다.
+
+## References
+
+- [Plug-in architecture(wikipedia.org)](<https://en.wikipedia.org/wiki/Plug-in_(computing)>)

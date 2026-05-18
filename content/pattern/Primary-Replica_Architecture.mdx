@@ -1,0 +1,225 @@
+---
+title: Primary-Replica Architecture
+---
+
+# Primary-Replica Architecture
+
+Primary-Replica Architecture는 하나의 **Primary** 노드가 쓰기와 조정을 담당하고, 여러 **Replica** 노드가 Primary의 데이터를 복제해서 읽기 요청이나 백업 역할을 담당하는 아키텍처 스타일이다.
+
+예전에는 Master-Slave Architecture라고 부르는 경우가 많았지만, 요즘은 더 중립적인 표현인 Primary-Replica, Leader-Follower, Primary-Secondary 같은 이름을 많이 사용한다.
+
+핵심 아이디어는 "중요한 결정과 쓰기는 한 곳에서 관리하고, 읽기와 복제는 여러 노드로 분산한다"는 것이다.
+
+## Structure(구조)
+
+```
+              Write
+Client ─────────────────▶┌─────────────┐
+                         │  Primary    │
+                         │  Node       │
+                         └──────┬──────┘
+                                │
+                    Replication │
+             ┌──────────────────┼──────────────────┐
+             │                  │                  │
+        ┌────▼─────┐       ┌────▼─────┐       ┌────▼─────┐
+        │ Replica  │       │ Replica  │       │ Replica  │
+        │ Node A   │       │ Node B   │       │ Node C   │
+        └────┬─────┘       └────┬─────┘       └────┬─────┘
+             │                  │                  │
+             └──────────────────┼──────────────────┘
+                                │
+                              Read
+```
+
+## Core Concepts(핵심 개념)
+
+- **Primary** - 쓰기 요청을 받고 데이터 변경의 기준이 되는 노드
+- **Replica** - Primary의 데이터를 복제해 읽기 요청을 처리하거나 장애 복구에 사용되는 노드
+- **Replication** - Primary의 변경 사항을 Replica로 전달하는 과정
+- **Failover** - Primary 장애 시 Replica 중 하나를 새로운 Primary로 승격하는 과정
+- **Replication Lag** - Primary의 변경 사항이 Replica에 반영되기까지의 지연 시간
+
+Primary-Replica 구조는 데이터베이스, 파일 시스템, 캐시, 검색 인덱스, 분산 작업 처리 시스템 등에서 자주 사용된다.
+
+## 동작 방식
+
+```
+1. 쓰기 요청은 Primary로 간다
+2. Primary가 데이터를 변경한다
+3. 변경 사항이 Replica로 복제된다
+4. 읽기 요청은 Primary 또는 Replica에서 처리한다
+5. Primary에 장애가 나면 Replica 중 하나가 새 Primary가 된다
+```
+
+이 구조에서는 쓰기의 기준점을 하나로 유지하기 때문에 충돌을 줄일 수 있다. 대신 Primary가 병목이 되거나 장애 지점이 될 수 있으므로 복제와 장애 전환 전략이 중요하다.
+
+## Simple Example(간단한 예제)
+
+아래 예제는 쓰기는 Primary 저장소에만 수행하고, Replica는 Primary의 변경을 복제받아 읽기 요청을 처리하는 단순화된 구조이다.
+
+```typescript
+// storage/UserStore.ts
+export interface User {
+  id: string;
+  name: string;
+}
+
+export class UserStore {
+  private users = new Map<string, User>();
+
+  save(user: User) {
+    this.users.set(user.id, user);
+  }
+
+  findById(id: string) {
+    return this.users.get(id);
+  }
+
+  snapshot() {
+    return Array.from(this.users.values());
+  }
+
+  restore(users: User[]) {
+    this.users = new Map(users.map((user) => [user.id, user]));
+  }
+}
+```
+
+```typescript
+// replication/PrimaryReplicaCluster.ts
+import { User, UserStore } from "../storage/UserStore";
+
+export class PrimaryReplicaCluster {
+  constructor(
+    private primary: UserStore,
+    private replicas: UserStore[],
+  ) {}
+
+  write(user: User) {
+    this.primary.save(user);
+    this.replicate();
+  }
+
+  read(userId: string) {
+    const replica = this.replicas[0];
+    return replica.findById(userId);
+  }
+
+  private replicate() {
+    const snapshot = this.primary.snapshot();
+    this.replicas.forEach((replica) => replica.restore(snapshot));
+  }
+}
+```
+
+```typescript
+// main.ts
+import { PrimaryReplicaCluster } from "./replication/PrimaryReplicaCluster";
+import { UserStore } from "./storage/UserStore";
+
+const cluster = new PrimaryReplicaCluster(new UserStore(), [
+  new UserStore(),
+  new UserStore(),
+]);
+
+cluster.write({ id: "USER-001", name: "Kim" });
+
+console.log(cluster.read("USER-001"));
+```
+
+실제 시스템에서는 복제가 네트워크를 통해 비동기로 일어나는 경우가 많다. 그래서 Replica에서 읽은 데이터가 Primary보다 잠시 오래된 값일 수 있다.
+
+## Replication 방식
+
+### Synchronous Replication
+
+Primary가 Replica에 변경 사항이 반영된 것을 확인한 뒤 쓰기를 성공으로 처리하는 방식이다.
+
+- 데이터 유실 가능성이 낮음
+- 일관성이 강함
+- 쓰기 지연 시간이 늘어남
+- Replica 장애가 쓰기 처리에 영향을 줄 수 있음
+
+### Asynchronous Replication
+
+Primary가 먼저 쓰기를 성공으로 처리하고, 변경 사항을 나중에 Replica로 전달하는 방식이다.
+
+- 쓰기 응답이 빠름
+- Replica 장애에 덜 민감함
+- 복제 지연이 생길 수 있음
+- Primary 장애 시 아직 복제되지 않은 데이터가 유실될 수 있음
+
+## 장점
+
+- 읽기 트래픽을 여러 Replica로 분산할 수 있음
+- Primary 장애 시 Replica를 승격해 복구할 수 있음
+- 쓰기 기준점이 하나라 데이터 충돌을 줄이기 쉬움
+- 백업, 리포팅, 분석 작업을 Replica에서 분리해 처리할 수 있음
+- 지리적으로 가까운 Replica를 두면 읽기 지연 시간을 줄일 수 있음
+
+## 단점
+
+- Primary가 쓰기 병목이 될 수 있음
+- 복제 지연 때문에 오래된 데이터를 읽을 수 있음
+- Failover 과정에서 짧은 중단이나 데이터 불일치가 생길 수 있음
+- Primary 승격 정책이 잘못되면 split-brain 문제가 생길 수 있음
+- 쓰기 확장성에는 한계가 있음
+
+## Design Guidelines(설계 지침)
+
+### 1. 읽기와 쓰기 경로를 명확히 나눈다
+
+쓰기 요청은 Primary로 보내고, 읽기 요청은 요구되는 일관성 수준에 따라 Primary 또는 Replica로 보낸다.
+
+```
+강한 일관성이 필요한 읽기: Primary
+약간 오래된 데이터도 괜찮은 읽기: Replica
+```
+
+### 2. 복제 지연을 사용자 경험에 반영한다
+
+Replica에서 읽으면 방금 쓴 데이터가 바로 보이지 않을 수 있다. 사용자가 수정 직후 같은 데이터를 조회하는 경로는 Primary에서 읽거나, 일정 시간 동안 read-your-writes 전략을 적용할 수 있다.
+
+### 3. Failover 전략을 자동화한다
+
+Primary 장애를 사람이 직접 판단하고 수동으로 승격하면 복구가 늦어진다. health check, leader election, quorum, fencing 같은 장치를 통해 잘못된 Primary가 둘 생기지 않도록 해야 한다.
+
+### 4. Replica의 용도를 분리한다
+
+모든 Replica가 같은 역할을 할 필요는 없다.
+
+```
+Replica A: 사용자 읽기 트래픽
+Replica B: 관리자 리포트
+Replica C: 백업과 분석
+```
+
+Replica 용도를 분리하면 무거운 분석 쿼리가 사용자 요청에 영향을 주는 것을 줄일 수 있다.
+
+## 적용 시기
+
+### 적합한 상황
+
+- 읽기 트래픽이 쓰기 트래픽보다 훨씬 많은 시스템
+- 데이터베이스 읽기 부하를 분산해야 할 때
+- 장애 복구와 고가용성이 중요한 서비스
+- 분석, 백업, 리포팅 작업을 운영 트래픽과 분리하고 싶을 때
+- 지역별 읽기 지연 시간을 줄여야 할 때
+
+### 부적합한 상황
+
+- 쓰기 트래픽이 매우 많아 단일 Primary가 병목이 되는 시스템
+- 모든 읽기에서 항상 최신 데이터가 필요한 시스템
+- 복제 지연이나 장애 전환을 운영할 준비가 없는 팀
+- 데이터 충돌을 감수하더라도 다중 쓰기 노드가 필요한 시스템
+
+## Related Patterns(관련 패턴)
+
+- [CQRS](/pattern/CQRS) - 쓰기 모델과 읽기 모델을 분리한다는 점에서 함께 사용될 수 있다.
+- [Event-driven Architecture](/pattern/Event-driven_Architecture) - 변경 이벤트를 Replica나 읽기 모델 갱신에 사용할 수 있다.
+
+## References
+
+- [Replication(computing)(wikipedia.org)](<https://en.wikipedia.org/wiki/Replication_(computing)>)
+- [Replication(mongodb.com)](https://www.mongodb.com/docs/manual/replication/)

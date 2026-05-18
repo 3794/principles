@@ -1,0 +1,166 @@
+---
+title: Monolithic Architecture
+---
+
+# Monolithic Architecture
+
+Monolithic Architecture는 애플리케이션의 주요 기능이 하나의 코드베이스와 하나의 배포 단위 안에 함께 들어 있는 아키텍처 스타일이다.
+
+사용자 인터페이스, 비즈니스 로직, 데이터 접근, 인증, 결제, 주문 같은 기능이 논리적으로는 나뉘어 있을 수 있지만, 빌드하고 배포할 때는 하나의 애플리케이션으로 움직인다.
+
+핵심 아이디어는 "시스템을 여러 서비스로 쪼개기 전에, 하나의 애플리케이션 안에서 명확하게 구조화한다"는 것이다.
+
+## Structure(구조)
+
+```
+┌──────────────────────────────────────────────┐
+│              Monolithic Application          │
+│                                              │
+│  ┌────────────┐ ┌────────────┐ ┌───────────┐ │
+│  │ UI / API   │ │ Business   │ │ Data      │ │
+│  │ Layer      │ │ Logic      │ │ Access    │ │
+│  └────────────┘ └────────────┘ └───────────┘ │
+│                                              │
+│  ┌────────────┐ ┌────────────┐ ┌───────────┐ │
+│  │ Auth       │ │ Order      │ │ Payment   │ │
+│  │ Module     │ │ Module     │ │ Module    │ │
+│  └────────────┘ └────────────┘ └───────────┘ │
+└──────────────────────┬───────────────────────┘
+                       │
+              ┌────────▼────────┐
+              │    Database     │
+              └─────────────────┘
+```
+
+## Core Concepts(핵심 개념)
+
+- **Single Deployment Unit** - 전체 애플리케이션을 하나의 단위로 빌드하고 배포한다
+- **Shared Codebase** - 여러 기능이 같은 저장소와 런타임 안에 존재한다
+- **In-process Communication** - 모듈 간 통신이 네트워크 호출이 아니라 함수 호출로 이루어진다
+- **Shared Database** - 하나의 데이터베이스를 여러 모듈이 함께 사용하는 경우가 많다
+- **Centralized Runtime** - 장애, 성능, 확장, 배포가 하나의 런타임 단위에 묶인다
+
+Monolith는 구조가 없다는 뜻이 아니다. 잘 설계된 Monolith는 내부적으로 모듈, 레이어, 경계를 명확히 가진다.
+
+## 동작 방식
+
+```
+1. 사용자가 주문 생성 요청을 보낸다
+2. 같은 애플리케이션 안의 API 계층이 요청을 받는다
+3. Order Module이 주문 비즈니스 로직을 실행한다
+4. Payment Module을 함수 호출로 사용한다
+5. Data Access 계층이 데이터베이스에 저장한다
+6. 하나의 애플리케이션이 응답을 반환한다
+```
+
+Microservices처럼 서비스 간 네트워크 호출이 발생하지 않는다. 대부분의 협력은 같은 프로세스 안에서 이루어지기 때문에 단순하고 빠르다.
+
+## Modular Monolith
+
+Monolith의 가장 좋은 형태는 Modular Monolith다. 하나의 애플리케이션으로 배포하지만 내부를 명확한 모듈로 나눈다.
+
+```
+Monolith
+├── User Module
+├── Order Module
+├── Payment Module
+├── Inventory Module
+└── Notification Module
+```
+
+각 모듈은 자신의 책임과 데이터 접근 방식을 가지며, 다른 모듈의 내부 구현을 직접 건드리지 않는다.
+
+```
+좋은 예:
+Order Module → Payment Module의 공개 API 호출
+
+나쁜 예:
+Order Module → Payment Module의 내부 테이블이나 private 함수 직접 사용
+```
+
+Modular Monolith는 나중에 정말 필요해졌을 때 특정 모듈을 Microservice로 분리하기도 쉽다.
+
+## 장점
+
+- 구조가 단순하고 이해하기 쉬움
+- 개발, 테스트, 배포 파이프라인이 단순함
+- 함수 호출로 모듈 간 협력이 가능해 성능 오버헤드가 작음
+- 트랜잭션 관리가 비교적 쉬움
+- 초기 제품 개발 속도가 빠름
+- 작은 팀이 운영하기 좋음
+
+## 단점
+
+- 코드베이스가 커질수록 변경 영향 범위가 넓어짐
+- 잘못 관리하면 모듈 경계가 무너지고 Big Ball of Mud가 되기 쉬움
+- 일부 기능만 독립적으로 배포하기 어려움
+- 기능별로 다른 기술 스택을 선택하기 어려움
+- 특정 부분의 부하 때문에 전체 애플리케이션을 확장해야 할 수 있음
+- 빌드와 테스트 시간이 점점 길어질 수 있음
+
+## Design Guidelines(설계 지침)
+
+### 1. Monolith를 구조 없이 만들지 않는다
+
+Monolith는 하나의 배포 단위일 뿐, 하나의 거대한 파일이나 무질서한 코드 덩어리가 아니다. 모듈, 레이어, 패키지 경계를 명확히 해야 한다.
+
+### 2. 모듈 간 의존성을 제한한다
+
+모듈이 서로의 내부 구현을 마음대로 참조하면 시간이 지날수록 분리할 수 없는 구조가 된다. 모듈 사이에는 공개 인터페이스를 두고, 내부 구현은 숨기는 편이 좋다.
+
+### 3. 데이터 접근 경계를 정한다
+
+같은 데이터베이스를 사용하더라도 모든 모듈이 모든 테이블을 직접 만지면 결합도가 높아진다. 가능하면 모듈이 자신의 데이터 소유권을 갖도록 설계한다.
+
+### 4. 배포 단위와 코드 경계를 혼동하지 않는다
+
+배포는 하나로 하더라도 코드 경계는 여러 개일 수 있다. Monolith에서 중요한 것은 "하나로 배포한다"와 "아무렇게나 섞어도 된다"를 구분하는 것이다.
+
+### 5. 분리 기준은 실제 압력이 생긴 뒤 판단한다
+
+처음부터 Microservices로 쪼개면 네트워크, 배포, 관찰 가능성, 데이터 일관성 문제가 바로 생긴다. 팀 규모, 배포 독립성, 성능 병목, 도메인 경계가 충분히 분명해졌을 때 분리를 고려해도 늦지 않다.
+
+## 적용 시기
+
+### 적합한 상황
+
+- 제품 초기 단계
+- 팀 규모가 작을 때
+- 도메인 경계가 아직 명확하지 않을 때
+- 빠르게 기능을 만들고 검증해야 할 때
+- 독립 배포보다 개발 속도와 단순성이 더 중요할 때
+- 트래픽과 조직 규모가 아직 크지 않을 때
+
+### 부적합한 상황
+
+- 여러 팀이 각자 독립적으로 배포해야 할 때
+- 일부 기능만 매우 높은 트래픽을 받아 별도 확장이 필요할 때
+- 도메인별 기술 스택이 크게 달라야 할 때
+- 장애 격리가 매우 중요한 시스템
+- 빌드, 테스트, 배포 시간이 조직 전체의 병목이 되었을 때
+
+## Monolith와 Microservices
+
+Monolith와 Microservices는 선악의 문제가 아니라 트레이드오프다.
+
+```
+Monolith:
+단순성, 빠른 개발, 쉬운 트랜잭션
+
+Microservices:
+독립 배포, 장애 격리, 팀별 확장
+```
+
+많은 시스템은 처음에는 Monolith로 시작하고, 규모가 커지면서 일부 기능을 서비스로 분리한다. 이때 처음부터 모듈 경계를 잘 잡아둔 Modular Monolith는 좋은 출발점이 된다.
+
+## Related Patterns(관련 패턴)
+
+- [Layered Architecture](/pattern/Layered_Architecture) - Monolith 내부를 계층으로 나누는 대표적인 방식이다.
+- [Clean Architecture](/pattern/Clean_Architecture) - Monolith 안에서도 비즈니스 로직을 외부 기술로부터 분리할 수 있다.
+- [Microkernel Architecture](/pattern/Microkernel_Architecture) - 하나의 코어와 여러 플러그인으로 Monolith를 확장할 수 있다.
+
+## References
+
+- [Monolithic application(wikipedia.org)](https://en.wikipedia.org/wiki/Monolithic_application)
+- [Monolith First(martinfowler.com)](https://martinfowler.com/bliki/MonolithFirst.html)
+- [Modular Monolith(milanjovanovic.tech)](https://www.milanjovanovic.tech/blog/what-is-a-modular-monolith)
