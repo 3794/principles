@@ -4,253 +4,323 @@ title: Event Sourcing
 
 # Event Sourcing
 
-Event Sourcing은 애플리케이션의 상태 변화를 직접 저장하는 대신, 모든 변화를 유발하는 **이벤트들을 시간순으로 저장**하는 아키텍처 패턴이다. 이벤트 스트림으로부터 현재 상태를 언제든지 재구성할 수 있다.
+Event Sourcing은 애플리케이션 상태의 모든 변화를 **이벤트의 순서 있는 목록**으로 저장하는 패턴이다.
 
-## Core Concepts(핵심 개념)
+일반적인 시스템은 현재 상태를 저장한다.
 
-- **Event Store** - 모든 이벤트를 불변(immutable)의 로그로 저장하는 중앙 저장소
-- **Event Stream** - 시간순으로 정렬된 이벤트들의 시퀀스
-- **State Reconstruction** - 이벤트들을 재생해서 어떤 시점의 상태든 복원 가능
-- **Single Source of Truth** - 이벤트 스트림이 유일한 진실
-
-## Key Benefits(주요 이점)
-
-- 완전한 감사 추적(audit trail) 제공 - 모든 변화의 기록이 남음
-- 시간 여행 디버깅 - 과거의 어떤 시점 상태도 확인 가능
-- 동시성 처리 용이 - 이벤트 기반으로 동시 작업 처리
-- 이벤트 재생 - 버그 수정 후 과거 이벤트를 다시 처리
-- CQRS와 결합하여 강력한 시스템 구축
-
-## Simple Example(간단한 예제)
-
-은행 계좌 시스템을 Event Sourcing으로 구현한 예제이다.
-
-### 1. Events 정의
-
-```typescript
-// src/events/DomainEvent.ts
-interface DomainEvent {
-  eventId: string;
-  eventType: string;
-  aggregateId: string;
-  timestamp: Date;
-  data: any;
-}
-
-// src/events/AccountEvents.ts
-export class AccountCreatedEvent implements DomainEvent {
-  eventId = Math.random().toString();
-  eventType = "AccountCreated";
-  timestamp = new Date();
-
-  constructor(
-    public aggregateId: string,
-    public data: { accountHolder: string; initialBalance: number }
-  ) {}
-}
-
-export class MoneyDepositedEvent implements DomainEvent {
-  eventId = Math.random().toString();
-  eventType = "MoneyDeposited";
-  timestamp = new Date();
-
-  constructor(
-    public aggregateId: string,
-    public data: { amount: number }
-  ) {}
-}
-
-export class MoneyWithdrawnEvent implements DomainEvent {
-  eventId = Math.random().toString();
-  eventType = "MoneyWithdrawn";
-  timestamp = new Date();
-
-  constructor(
-    public aggregateId: string,
-    public data: { amount: number }
-  ) {}
-}
+```
+Ship King Roy
+location: Hong Kong
 ```
 
-### 2. Event Store
+Event Sourcing은 현재 상태만 저장하지 않고, 그 상태가 만들어진 과정을 이벤트로 남긴다.
 
-```typescript
-// src/eventstore/EventStore.ts
-export class EventStore {
-  private events: DomainEvent[] = [];
-
-  append(event: DomainEvent): void {
-    this.events.push(event);
-  }
-
-  getEventsByAggregateId(aggregateId: string): DomainEvent[] {
-    return this.events.filter((e) => e.aggregateId === aggregateId);
-  }
-
-  getAllEvents(): DomainEvent[] {
-    return [...this.events];
-  }
-}
+```
+King Roy departed San Francisco
+King Roy arrived Hong Kong
 ```
 
-### 3. Aggregate (엔티티)
+즉, "지금 어디에 있는가?"뿐 아니라 "어떻게 거기까지 왔는가?"를 알 수 있게 만든다.
 
-```typescript
-// src/aggregates/Account.ts
-export class Account {
-  id: string;
-  accountHolder: string;
-  balance: number = 0;
-  version: number = 0; // 이벤트 버전 추적
+## 핵심 아이디어
 
-  private changes: DomainEvent[] = [];
+Event Sourcing의 핵심은 모든 상태 변경이 이벤트 객체를 통해 일어나게 하는 것이다.
 
-  constructor(id: string) {
-    this.id = id;
-  }
-
-  // 이벤트 로드
-  loadFromHistory(events: DomainEvent[]): void {
-    events.forEach((event) => this.applyEvent(event));
-  }
-
-  // 비즈니스 로직
-  createAccount(accountHolder: string, initialBalance: number): void {
-    const event = new AccountCreatedEvent(this.id, {
-      accountHolder,
-      initialBalance,
-    });
-    this.applyEvent(event);
-    this.changes.push(event);
-  }
-
-  deposit(amount: number): void {
-    if (amount <= 0) throw new Error("Amount must be positive");
-
-    const event = new MoneyDepositedEvent(this.id, { amount });
-    this.applyEvent(event);
-    this.changes.push(event);
-  }
-
-  withdraw(amount: number): void {
-    if (amount > this.balance) throw new Error("Insufficient balance");
-
-    const event = new MoneyWithdrawnEvent(this.id, { amount });
-    this.applyEvent(event);
-    this.changes.push(event);
-  }
-
-  // 이벤트 적용 (상태 업데이트)
-  private applyEvent(event: DomainEvent): void {
-    switch (event.eventType) {
-      case "AccountCreated":
-        this.accountHolder = event.data.accountHolder;
-        this.balance = event.data.initialBalance;
-        break;
-      case "MoneyDeposited":
-        this.balance += event.data.amount;
-        break;
-      case "MoneyWithdrawn":
-        this.balance -= event.data.amount;
-        break;
-    }
-    this.version++;
-  }
-
-  // 변경사항 가져오기
-  getUncommittedChanges(): DomainEvent[] {
-    return this.changes;
-  }
-
-  // 변경사항 커밋
-  markChangesAsCommitted(): void {
-    this.changes = [];
-  }
-}
+```
+Command / Input
+      ↓
+Event 생성
+      ↓
+Event 적용
+      ↓
+Application State 변경
+      ↓
+Event Log 저장
 ```
 
-### 4. Repository (저장소)
+겉으로 보면 단순한 우회처럼 보일 수 있다. 그냥 객체 상태를 바꾸면 되는데 왜 이벤트 객체를 만들고 다시 적용하는가?
 
-```typescript
-// src/repositories/AccountRepository.ts
-export class AccountRepository {
-  constructor(private eventStore: EventStore) {}
+차이는 저장되는 것에서 나온다. 일반적인 시스템은 현재 상태만 남긴다. Event Sourcing은 현재 상태와 함께, 또는 현재 상태 대신, 상태를 만든 이벤트 로그를 남긴다.
 
-  save(account: Account): void {
-    const changes = account.getUncommittedChanges();
-    changes.forEach((event) => this.eventStore.append(event));
-    account.markChangesAsCommitted();
-  }
+## Application State와 Event Log
 
-  getById(id: string): Account {
-    const account = new Account(id);
-    const events = this.eventStore.getEventsByAggregateId(id);
-    account.loadFromHistory(events);
-    return account;
-  }
-}
+Fowler는 Event Sourcing을 이해할 때 두 가지를 구분하는 것이 유용하다고 설명한다.
+
+- **Application State** - 현재 애플리케이션이 알고 있는 상태
+- **Event Log** - 그 상태를 만들기 위해 적용된 이벤트들의 기록
+
+예를 들어 선박 위치 추적 시스템이 있다고 하자.
+
+```
+1. King Roy가 San Francisco를 떠남
+2. Prince Trevor가 Los Angeles에 도착함
+3. King Roy가 Hong Kong에 도착함
 ```
 
-### 5. 사용 예제
+일반적인 시스템은 최종 상태만 저장한다.
 
-```typescript
-// src/main.ts
-const eventStore = new EventStore();
-const repository = new AccountRepository(eventStore);
-
-// 새 계좌 생성
-const account = new Account("ACC-001");
-account.createAccount("John Doe", 1000);
-account.deposit(500);
-account.withdraw(200);
-
-// 이벤트 저장
-repository.save(account);
-
-// 이벤트 스트림 확인
-const allEvents = eventStore.getAllEvents();
-console.log("Event Stream:", allEvents);
-// [
-//   AccountCreatedEvent { accountHolder: 'John Doe', initialBalance: 1000 },
-//   MoneyDepositedEvent { amount: 500 },
-//   MoneyWithdrawnEvent { amount: 200 }
-// ]
-
-// 과거 상태 복원
-const restoredAccount = repository.getById("ACC-001");
-console.log(`Balance: ${restoredAccount.balance}`); // 1300
-
-// 특정 시점의 상태 복원 (이벤트 일부만 재생)
-const accountAfterDeposit = new Account("ACC-001");
-const firstTwoEvents = allEvents.slice(0, 2);
-accountAfterDeposit.loadFromHistory(firstTwoEvents);
-console.log(
-  `Balance after deposit: ${accountAfterDeposit.balance}`
-); // 1500
+```
+King Roy: Hong Kong
+Prince Trevor: Los Angeles
 ```
 
-## Event Sourcing과 CQRS
+Event Sourcing 시스템은 최종 상태와 함께 이벤트 로그를 저장한다.
 
-[CQRS](/pattern/CQRS)와 Event Sourcing은 완벽한 조합이다.
+```
+Event Log
+├── King Roy departed San Francisco
+├── Prince Trevor arrived Los Angeles
+└── King Roy arrived Hong Kong
 
-- **Event Sourcing** - 모든 변경을 이벤트로 저장
-- **CQRS** - 읽기와 쓰기 모델을 분리
+Application State
+├── King Roy: Hong Kong
+└── Prince Trevor: Los Angeles
+```
 
-함께 사용하면:
+중요한 점은 단순히 "이력도 저장한다"가 아니다. Event Sourcing에서는 **도메인 객체의 모든 변경이 이벤트로부터 시작된다는 보장**이 핵심이다.
 
-- 쓰기 모델: 이벤트 저장 (명령)
-- 읽기 모델: 이벤트로부터 재구성된 뷰 (조회)
-- 읽기 모델이 이벤트 스트림으로부터 항상 최신 상태 유지
+## Event Log로 할 수 있는 일
+
+### Complete Rebuild
+
+현재 application state를 버리고, 빈 상태에서 event log를 처음부터 다시 적용해 상태를 재구성할 수 있다.
+
+```
+Blank State
+  + Event 1
+  + Event 2
+  + Event 3
+  = Current State
+```
+
+이 기능은 저장 구조를 바꾸거나, 버그를 고친 뒤 상태를 다시 계산하거나, 새로운 read model을 만들 때 유용하다.
+
+### Temporal Query
+
+특정 시점의 상태를 조회할 수 있다.
+
+```
+Event 1
+Event 2
+Event 3
+Event 4
+
+Event 2까지만 replay
+  ↓
+그 시점의 상태
+```
+
+현재 상태만 저장하는 시스템에서는 "어제 오후 3시에 이 객체가 어떤 상태였는가?"를 답하기 어렵다. Event Sourcing에서는 해당 시점까지의 이벤트만 적용하면 된다.
+
+### Event Replay
+
+과거 이벤트가 잘못되었거나 순서가 잘못 들어온 경우, 이벤트를 다시 적용해서 결과를 계산할 수 있다.
+
+```
+잘못된 이벤트 제거 또는 수정
+      ↓
+이후 이벤트 다시 적용
+      ↓
+정정된 상태 계산
+```
+
+비동기 메시징 시스템에서는 이벤트가 늦게 도착하거나 순서가 뒤섞일 수 있다. Event Sourcing은 이런 상황을 다룰 수 있는 기반을 제공한다.
+
+## Snapshot과 캐시
+
+매번 빈 상태에서 모든 이벤트를 replay하면 느리다. 이벤트가 수십만 개라면 현재 상태를 얻기 위해 너무 많은 계산이 필요하다.
+
+그래서 보통은 application state를 캐시하거나 snapshot으로 저장한다.
+
+```
+Event 1
+Event 2
+Event 3
+Snapshot A
+Event 4
+Event 5
+
+현재 상태 = Snapshot A + Event 4 + Event 5
+```
+
+Application State는 메모리에 둘 수도 있고, 디스크나 데이터베이스에 저장할 수도 있다. 중요한 점은 이 상태가 event log로부터 파생될 수 있다는 것이다.
+
+시스템의 공식 기록(system of record)을 무엇으로 둘지는 선택이다.
+
+- Event Log를 공식 기록으로 두고 application state를 파생 데이터로 볼 수 있다
+- Application State를 공식 기록으로 두고 event log를 감사와 특수 처리용으로 둘 수도 있다
+
+Event Sourcing을 강하게 적용할수록 event log가 진짜 원천 데이터가 된다.
+
+## 이벤트 처리 로직을 어디에 둘 것인가
+
+Event Sourcing을 쓰면 이벤트를 처리하는 로직을 어디에 둘지 결정해야 한다.
+
+간단한 시스템에서는 Transaction Script처럼 이벤트 타입에 따라 처리 함수를 나누는 방식이 충분할 수 있다.
+
+```
+if event is ArrivalEvent:
+  ship.arrive(port)
+
+if event is DepartureEvent:
+  ship.depart(port)
+```
+
+도메인 로직이 복잡해지면 Domain Model 안에 비즈니스 규칙을 두는 편이 낫다.
+
+```
+ArrivalEvent
+  └── Ship.arrive(port)
+
+DepartureEvent
+  └── Ship.depart(port)
+```
+
+중요한 구분은 두 가지 책임이다.
+
+- 어떤 이벤트에 어떤 처리를 실행할지 고르는 책임
+- 실제 도메인 규칙을 적용하는 책임
+
+이 둘을 모두 이벤트 처리기에 몰아넣으면 이벤트 처리기가 점점 거대해진다. 반대로 도메인 모델에 적절히 위임하면 이벤트는 변화의 기록이고, 도메인 모델은 규칙의 장소가 된다.
+
+## 이벤트 되돌리기
+
+Event Sourcing에서는 이벤트를 앞으로 적용하는 것뿐 아니라, 필요하면 되돌리는 것도 유용할 수 있다.
+
+되돌리기 쉬운 이벤트는 "차이"를 표현하는 이벤트다.
+
+```
+좋은 예:
+계좌에 10달러를 더했다
+
+되돌리기:
+계좌에서 10달러를 뺀다
+```
+
+반대로 결과값만 저장한 이벤트는 되돌리기 어렵다.
+
+```
+어려운 예:
+계좌 잔액을 110달러로 설정했다
+```
+
+이전 값이 얼마였는지 모르면 되돌릴 수 없다. 따라서 되돌리기가 필요한 이벤트라면 이전 값이나 차이를 이벤트에 저장해야 한다.
+
+다만 모든 시스템이 이벤트 되돌리기를 직접 구현할 필요는 없다. 과거 snapshot으로 돌아가서 이후 이벤트를 다시 replay하는 방식으로도 같은 결과를 만들 수 있다. 되돌리기는 주로 효율성 때문에 고려한다.
+
+## 외부 시스템과의 상호작용
+
+Event Sourcing에서 가장 까다로운 부분 중 하나는 외부 시스템이다.
+
+이벤트를 replay할 때마다 외부 결제 API, 배송 API, 이메일 API를 다시 호출하면 큰 문제가 생긴다.
+
+```
+Replay 중 PaymentGateway.charge() 재실행
+  → 고객에게 결제가 두 번 발생할 수 있음
+```
+
+그래서 외부 시스템은 Gateway로 감싸고, replay 중인지 아닌지를 구분할 수 있게 해야 한다.
+
+```
+Domain Logic
+     ↓
+Payment Gateway
+     ↓
+replay mode라면 외부 호출 생략
+실제 처리라면 외부 API 호출
+```
+
+도메인 로직은 replay 여부를 몰라도 되는 편이 좋다. replay 모드에서 외부 호출을 막는 책임은 Gateway가 갖는 것이 안전하다.
+
+## 외부 조회 문제
+
+외부 시스템에서 값을 조회하는 것도 문제가 될 수 있다.
+
+예를 들어 12월 5일에 환율을 조회해서 이벤트를 처리했다고 하자. 나중에 12월 20일에 이벤트를 replay할 때 현재 환율을 다시 조회하면 결과가 달라질 수 있다.
+
+```
+실제 처리 시점: 12월 5일 환율
+Replay 시점: 12월 20일 환율
+```
+
+일관된 replay를 하려면 당시 조회 결과를 저장하거나, 외부 시스템이 과거 시점의 값을 안정적으로 제공해야 한다.
+
+## 코드 변경과 Replay
+
+Event Sourcing은 "데이터 변화"를 이벤트로 다룬다. 그런데 시간이 지나면 코드도 바뀐다.
+
+코드 변경은 크게 세 가지로 볼 수 있다.
+
+- **새 기능 추가** - 과거 이벤트를 새 기능 기준으로 다시 처리할 수 있다
+- **버그 수정** - 잘못 계산된 application state를 event log replay로 다시 만들 수 있다
+- **시간에 따라 달라지는 규칙** - 특정 날짜 이전과 이후에 다른 규칙을 적용해야 한다
+
+새 기능이나 버그 수정은 Event Sourcing의 장점을 잘 보여준다. 실제 운영에서 발생한 이벤트를 테스트 환경에 replay해서 새 코드가 올바른 결과를 만드는지 확인할 수 있다.
+
+하지만 시간에 따라 규칙 자체가 달라지는 경우는 복잡하다.
+
+```
+11월 18일 이전: 수수료 10달러
+11월 18일 이후: 수수료 15달러
+```
+
+이런 규칙은 도메인 모델 안에서 시간 기준으로 명시적으로 다뤄야 한다. 과거 이벤트를 replay할 때는 그 당시 적용되어야 할 규칙이 무엇인지 알아야 한다.
+
+## 적용 시기
+
+Event Sourcing은 모든 시스템에 자연스러운 선택은 아니다. 모든 변경을 이벤트로 포장하는 방식이 어색하게 느껴질 수 있고, 단순 CRUD보다 복잡하다.
+
+그럼에도 다음과 같은 보상이 필요하다면 고려할 만하다.
+
+### 적합한 상황
+
+- 감사 로그가 핵심 요구사항인 시스템
+- 사용자의 과거 행동을 추적해서 문제를 분석해야 하는 시스템
+- 특정 시점의 상태를 재구성해야 하는 시스템
+- 운영 이벤트를 테스트 환경에 replay해서 디버깅하고 싶은 경우
+- 버그 수정 후 application state를 다시 계산하고 싶은 경우
+- 읽기 모델이나 병렬 모델을 이벤트 스트림에서 파생하고 싶은 경우
+- 회계처럼 모든 변경 기록이 중요한 도메인
+
+### 부적합한 상황
+
+- 단순 CRUD 애플리케이션
+- 현재 상태만 중요하고 변경 과정은 별 의미가 없는 시스템
+- 이벤트 스키마와 replay 전략을 운영할 준비가 없는 팀
+- 외부 시스템 호출이 많고 replay 부작용을 제어하기 어려운 시스템
+- 감사, temporal query, rebuild 같은 기능이 필요하지 않은 시스템
+
+## 장점
+
+- 모든 변경에 대한 완전한 기록을 얻을 수 있음
+- 과거 시점의 상태를 재구성할 수 있음
+- 현재 상태를 버리고 event log에서 다시 만들 수 있음
+- 운영에서 발생한 이벤트를 테스트 환경에 replay할 수 있음
+- 새 read model이나 병렬 모델을 이벤트 스트림에서 만들기 쉬움
+- append-only 구조라 쓰기 경합을 줄일 수 있음
+
+## 단점
+
+- 이벤트 스키마 진화가 어렵다
+- 외부 시스템 호출과 replay를 안전하게 분리해야 한다
+- 단순 조회와 저장보다 이해하기 어렵다
+- 이벤트 수가 많아지면 snapshot과 캐시 전략이 필요하다
+- 시간에 따라 바뀌는 비즈니스 규칙을 다루기 어렵다
+- 잘못 설계하면 이벤트 처리기가 거대한 분기문이 된다
 
 ## Key Points(핵심 포인트)
 
-- **불변 로그** - 이벤트는 추가만 가능, 수정 불가 (append-only)
-- **완전한 히스토리** - 모든 상태 변화의 기록이 남음
-- **복잡성** - 일관성 유지, 이벤트 버전 관리 등 추가 복잡도
-- **저장소 크기** - 이벤트가 계속 누적되므로 저장소 관리 필요
-- **이벤트 스키마 진화** - 시간이 지남에 따라 이벤트 구조 변화 처리
+- Event Sourcing은 모든 application state 변경을 이벤트로 저장한다
+- 중요한 것은 이력 저장 자체가 아니라, 모든 변경이 이벤트로부터 시작된다는 보장이다
+- Event Log를 replay하면 complete rebuild와 temporal query가 가능하다
+- Snapshot은 성능 최적화이지 Event Sourcing의 반대가 아니다
+- 외부 시스템과 replay의 부작용을 반드시 분리해야 한다
+- 복잡도를 감수할 만큼 감사, 재현, 시간 질의가 중요할 때 적합하다
 
-### References
+## Related Patterns(관련 패턴)
+
+- [Event-driven Architecture](/pattern/Event-driven_Architecture) - 이벤트를 중심으로 시스템을 구성하는 상위 아키텍처 스타일이다.
+
+## References
 
 - [Event Sourcing(martinfowler.com)](https://martinfowler.com/eaaDev/EventSourcing.html)
-- [Event Sourcing (wikipedia.org)](https://en.wikipedia.org/wiki/Event_sourcing)
